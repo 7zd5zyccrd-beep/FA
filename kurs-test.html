@@ -36,7 +36,9 @@ body {
            calc(32px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
 }
 main { max-width: 640px; margin: 0 auto; }
-h1 { font-size: 24px; margin: 18px 4px 2px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 18px 4px 2px; }
+h1 { font-size: 24px; margin: 0; }
+.top button { width: auto; min-height: 40px; margin: 0; padding: 0 14px; font-size: 15px; }
 h1 .ver { font-size: 14px; font-weight: 400; color: var(--muted); }
 .lead { margin: 0 4px 8px; color: var(--muted); font-size: 15px; }
 h2 { font-size: 18px; margin: 0 0 6px; }
@@ -103,7 +105,10 @@ details[open] > summary::after { transform: rotate(90deg); }
 </head>
 <body>
 <main>
-  <h1>Kurs-Test <span class="ver" id="ver"></span></h1>
+  <div class="top">
+    <h1>Kurs-Test <span class="ver" id="ver"></span></h1>
+    <button type="button" class="sec" id="reloadBtn">Neu laden</button>
+  </div>
   <p class="lead">Schlusskurs zu ISIN und Datum aus mehreren Quellen abrufen und mit der Abrechnung vergleichen.</p>
 
   <form class="card" id="form" novalidate autocomplete="off">
@@ -160,7 +165,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
 <script>
 'use strict';
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
 const TIMEOUT_MS = 15000;
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
@@ -738,6 +743,8 @@ function init() {
   $('#date').max = todayIso();
   $('#form').addEventListener('input', () => store.set('kt.form', Object.fromEntries(FIELDS.map(f => [f, $('#' + f).value]))));
   $('#form').addEventListener('submit', runAll);
+  // Lädt die Seite am Zwischenspeicher vorbei, damit eine neue Version sofort erscheint
+  $('#reloadBtn').addEventListener('click', () => location.replace(location.pathname + '?neu=' + Date.now()));
   $('#exportBtn').addEventListener('click', exportCsv);
   $('#clearBtn').addEventListener('click', () => {
     if (confirm('Testprotokoll wirklich löschen?')) { store.set('kt.log', []); updateProtoCount(); }
