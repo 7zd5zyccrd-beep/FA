@@ -96,8 +96,9 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 
 1. **kurs-test.html** – ISIN und Datum eingeben, Kurs aus Kandidatenquellen abrufen,
    mit Abrechnungen vergleichen. Danach Entscheidung über die Kursquelle.
-   *Stand v0.1.0:* Quellen onvista, Yahoo, EODHD, Twelve Data, Alpha Vantage,
-   OpenFIGI (nur Zuordnung), EZB-Devisenkurse; Testprotokoll als CSV.
+   *Stand v0.1.2:* Quellen onvista, Yahoo, EODHD, Twelve Data, Alpha Vantage,
+   OpenFIGI (nur Zuordnung), EZB-Devisenkurse; Testprotokoll als CSV;
+   Eingabe per ISIN oder WKN (WKN wird über onvista in die ISIN übersetzt).
 2. **Grundgerüst** – Depots, Wertpapiere, Transaktionen, Sicherung/Wiederherstellung.
 3. **Bewertung** – Bestände zu jedem Datum (inkl. Kapitalmaßnahmen), Kursabruf und
    Kursspeicher, Devisenkurse.
