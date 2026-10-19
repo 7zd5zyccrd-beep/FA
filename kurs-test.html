@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kurs-Test">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16181c" media="(prefers-color-scheme: dark)">
+<title>Kurs-Test</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #fff; --text: #16181c; --muted: #646a74; --line: #dcdfe4;
+  --accent: #0a66d8; --accent-text: #fff;
+  --ok: #1b7f3b; --ok-bg: #e4f3e9; --warn: #9a5c00; --warn-bg: #fcf0d9; --bad: #c62828; --bad-bg: #fbe6e6;
+  --hl: #e8f1fd;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181c; --card: #212429; --text: #eceef1; --muted: #9aa0aa; --line: #353943;
+    --accent: #4c9bff; --accent-text: #0b1220;
+    --ok: #63d18a; --ok-bg: #1c3325; --warn: #f0b04a; --warn-bg: #3a2e16; --bad: #ff7d7d; --bad-bg: #3d2121;
+    --hl: #1b2a3e;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top) max(12px, env(safe-area-inset-right))
+           calc(32px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+main { max-width: 640px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 18px 4px 2px; }
+h1 .ver { font-size: 14px; font-weight: 400; color: var(--muted); }
+.lead { margin: 0 4px 8px; color: var(--muted); font-size: 15px; }
+h2 { font-size: 18px; margin: 0 0 6px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 12px 0; }
+label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 4px; }
+input:not([type=checkbox]), select {
+  display: block; width: 100%; min-width: 0; min-height: 46px; margin: 0;
+  font: inherit; font-size: 17px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text);
+  -webkit-appearance: none; appearance: none;
+}
+select { background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 30px; }
+#isin, #symbol { text-transform: uppercase; }
+#isin::placeholder, #symbol::placeholder { text-transform: none; }
+input[type=checkbox] { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--accent); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 10px; }
+.hint { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+.err { color: var(--bad); font-size: 15px; margin: 10px 0 0; }
+button {
+  font: inherit; font-size: 17px; font-weight: 600; width: 100%; min-height: 50px; margin-top: 14px;
+  border: 0; border-radius: 12px; padding: 0 16px; background: var(--accent); color: var(--accent-text);
+  touch-action: manipulation;
+}
+button:disabled { opacity: .5; }
+button.sec { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 500; }
+.btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+details > summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::after { content: "›"; margin-left: auto; font-size: 22px; color: var(--muted); transition: transform .15s; }
+details[open] > summary::after { transform: rotate(90deg); }
+.src-set { border-top: 1px solid var(--line); padding: 12px 0 4px; }
+.src-set:first-of-type { border-top: 0; }
+.src-set .head { display: flex; gap: 10px; align-items: center; font-weight: 600; }
+.src-set a { color: var(--accent); }
+
+.res-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.res-head h2 { margin: 0; }
+.badge { font-size: 13px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--bg); color: var(--muted); }
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.msg { margin: 8px 0 0; font-size: 15px; color: var(--muted); }
+.q { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+.q.hl { background: var(--hl); border-color: var(--accent); }
+.q-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.q-label { font-weight: 600; overflow-wrap: anywhere; }
+.q-price { font-weight: 700; font-size: 18px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.q-sub { font-size: 14px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.q-sub.warn { color: var(--warn); }
+.q-dev { display: inline-block; margin-top: 6px; font-size: 14px; font-weight: 600; padding: 2px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+.q-dev.ok { background: var(--ok-bg); color: var(--ok); }
+.q-dev.warn { background: var(--warn-bg); color: var(--warn); }
+.q-dev.bad { background: var(--bad-bg); color: var(--bad); }
+.raw { margin-top: 10px; }
+.raw > summary { font-weight: 500; font-size: 14px; color: var(--accent); }
+.raw .call { margin-top: 8px; }
+.raw .url { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.raw pre { margin: 4px 0 0; padding: 8px; background: var(--bg); border-radius: 8px; font-size: 12px; max-height: 260px; overflow: auto;
+  white-space: pre-wrap; word-break: break-all; -webkit-overflow-scrolling: touch; }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -2px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kurs-Test <span class="ver" id="ver"></span></h1>
+  <p class="lead">Schlusskurs zu ISIN und Datum aus mehreren Quellen abrufen und mit der Abrechnung vergleichen.</p>
+
+  <form class="card" id="form" novalidate autocomplete="off">
+    <label for="isin">ISIN</label>
+    <input id="isin" name="isin" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" placeholder="z. B. IE00B4L5Y983" enterkeyhint="next">
+
+    <label for="date">Datum</label>
+    <input id="date" name="date" type="date">
+
+    <div class="grid2">
+      <div>
+        <label for="ref">Kurs laut Abrechnung</label>
+        <input id="ref" name="ref" inputmode="decimal" placeholder="optional" enterkeyhint="done">
+      </div>
+      <div>
+        <label for="refCur">Währung</label>
+        <select id="refCur" name="refCur"></select>
+      </div>
+    </div>
+
+    <label for="venue">Börsenplatz laut Abrechnung</label>
+    <input id="venue" name="venue" list="venues" autocorrect="off" placeholder="optional, z. B. Xetra">
+    <datalist id="venues">
+      <option value="Xetra"><option value="Tradegate"><option value="Frankfurt"><option value="gettex">
+      <option value="LS Exchange"><option value="Stuttgart"><option value="München"><option value="Fondsgesellschaft">
+      <option value="NYSE"><option value="Nasdaq">
+    </datalist>
+
+    <label for="symbol">Symbol / Ticker</label>
+    <input id="symbol" name="symbol" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="optional, z. B. EUNL.DE">
+    <p class="hint">Nur nötig, wenn eine Quelle die ISIN nicht findet. Wird zusätzlich zur ISIN-Suche probiert.</p>
+
+    <p class="err" id="formErr" hidden></p>
+    <button type="submit" id="go">Kurse abfragen</button>
+  </form>
+
+  <div id="results"></div>
+
+  <details class="card" id="protoCard">
+    <summary>Testprotokoll <span class="badge" id="protoCount" style="margin-left:8px">0</span></summary>
+    <p class="hint">Jede Abfrage wird hier lokal auf diesem Gerät gesammelt. Als CSV exportieren, um die Quellen zu vergleichen.</p>
+    <div class="btns">
+      <button type="button" id="exportBtn">CSV exportieren</button>
+      <button type="button" class="sec" id="clearBtn">Protokoll löschen</button>
+    </div>
+  </details>
+
+  <details class="card" id="settings">
+    <summary>Quellen und Schlüssel</summary>
+    <p class="hint">Schlüssel werden nur lokal in diesem Browser gespeichert und nie übertragen, außer an die jeweilige Quelle.</p>
+    <div id="srcSettings"></div>
+  </details>
+</main>
+
+<script>
+'use strict';
+const VERSION = '0.1.0';
+const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
+const TIMEOUT_MS = 15000;
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
+// Untereinheiten, in denen manche Börsen notieren (z. B. London in Pence)
+const SUBUNITS = { GBp: ['GBP', 100], GBX: ['GBP', 100], ZAc: ['ZAR', 100], ILA: ['ILS', 100] };
+
+// ---------- Hilfsfunktionen ----------
+const $ = s => document.querySelector(s);
+const enc = encodeURIComponent;
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* Speicher nicht verfügbar */ } },
+};
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) {
+    if (c == null || c === false) continue;
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+
+function fill(el, ...kids) { el.replaceChildren(...kids.flat().filter(c => c != null && c !== false)); }
+
+class SourceError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+
+function addDays(iso, n) {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+// Unix-Zeitstempel (Sekunden) → Kalenderdatum in der Zeitzone der Börse
+function tsToDate(sec, tz) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: tz || 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(new Date(sec * 1000));
+}
+function todayIso() { return tsToDate(Date.now() / 1000, 'Europe/Berlin'); }
+// Letzter gültiger Kurs am oder vor dem Datum
+function pickOnOrBefore(points, date) {
+  let best = null;
+  for (const p of points) {
+    if (p.date && p.date <= date && typeof p.close === 'number' && isFinite(p.close) && (!best || p.date > best.date)) best = p;
+  }
+  return best;
+}
+function fmtDate(iso) {
+  const [y, m, d] = iso.split('-');
+  const wd = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(iso + 'T12:00:00Z').getUTCDay()];
+  return `${wd} ${d}.${m}.${y}`;
+}
+const nf = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+const nf4 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+const nfPct = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'exceptZero' });
+function parseNum(s) {
+  s = String(s || '').trim().replace(/\s/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return isFinite(n) ? n : NaN;
+}
+function isinValid(s) {
+  if (!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(s)) return false;
+  const digits = s.split('').map(c => /[A-Z]/.test(c) ? String(c.charCodeAt(0) - 55) : c).join('');
+  let sum = 0;
+  for (let i = digits.length - 1, dbl = false; i >= 0; i--, dbl = !dbl) {
+    let d = +digits[i];
+    if (dbl) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+function maskUrl(u) { return u.replace(/(api_token|apikey|token)=[^&]+/gi, '$1=***'); }
+function venueMatch(label, venue) {
+  return !!venue && String(label || '').toLowerCase().includes(venue.toLowerCase());
+}
+function sortByVenue(list, getName, venue) {
+  return [...list].sort((a, b) => venueMatch(getName(b), venue) - venueMatch(getName(a), venue));
+}
+function dedupe(list, key) {
+  const seen = new Set();
+  return list.filter(x => { const k = key(x); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+}
+function parseCsv(text) {
+  const rows = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line) continue;
+    const out = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) { if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (c === '"') q = false; else cur += c; }
+      else if (c === '"') q = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+    out.push(cur); rows.push(out);
+  }
+  return rows;
+}
+
+// ---------- Abruf ----------
+async function fetchText(url, opts = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    let res;
+    try {
+      res = await fetch(url, { ...opts, signal: ctrl.signal, credentials: 'omit' });
+    } catch (e) {
+      if (e.name === 'AbortError') throw new SourceError('timeout', 'Zeitüberschreitung (15 s)');
+      throw new SourceError('blocked', 'Vom Browser blockiert (CORS) oder Netzwerkfehler');
+    }
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text };
+  } catch (e) {
+    if (e instanceof SourceError) throw e;
+    throw new SourceError(e.name === 'AbortError' ? 'timeout' : 'error', e.name === 'AbortError' ? 'Zeitüberschreitung (15 s)' : String(e.message || e));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Kontext je Quelle: hält den Schlüssel und protokolliert alle Rohantworten
+function makeCtx(src) {
+  const raw = [];
+  return {
+    raw,
+    key: (keys[src.id] || '').trim(),
+    async json(url, opts) {
+      const entry = { url: maskUrl(url) };
+      raw.push(entry);
+      try {
+        const r = await fetchText(url, opts);
+        entry.status = r.status; entry.text = r.text;
+        if (!r.ok) throw new SourceError('http', `HTTP ${r.status}`);
+        try { return JSON.parse(r.text); } catch { throw new SourceError('parse', 'Antwort ist kein JSON'); }
+      } catch (e) {
+        if (entry.text == null) entry.text = '[' + e.message + ']';
+        throw e;
+      }
+    },
+  };
+}
+
+// ---------- EZB-Referenzkurse ----------
+const fxCache = new Map();
+// Liefert Einheiten Fremdwährung je 1 EUR am oder vor dem Datum
+function ecbRate(cur, date) {
+  if (cur === 'EUR') return Promise.resolve({ rate: 1, date });
+  const k = cur + '|' + date;
+  if (!fxCache.has(k)) {
+    const p = (async () => {
+      const url = `https://data-api.ecb.europa.eu/service/data/EXR/D.${enc(cur)}.EUR.SP00.A?startPeriod=${addDays(date, -LOOKBACK_DAYS)}&endPeriod=${date}&format=csvdata&detail=dataonly`;
+      const r = await fetchText(url);
+      if (!r.ok) throw new SourceError(r.status === 404 ? 'notfound' : 'http', r.status === 404 ? `Kein EZB-Kurs für ${cur} im Zeitraum` : `HTTP ${r.status}`);
+      const rows = parseCsv(r.text);
+      const head = rows[0] || [];
+      const iD = head.indexOf('TIME_PERIOD'), iV = head.indexOf('OBS_VALUE');
+      const pt = pickOnOrBefore(rows.slice(1).map(x => ({ date: x[iD], close: parseFloat(x[iV]) })), date);
+      if (!pt) throw new SourceError('nodata', `Kein EZB-Kurs für ${cur} im Zeitraum`);
+      return { rate: pt.close, date: pt.date, url, text: r.text };
+    })();
+    p.catch(() => fxCache.delete(k));
+    fxCache.set(k, p);
+  }
+  return fxCache.get(k);
+}
+function normCur(cur, value) {
+  if (SUBUNITS[cur]) return { cur: SUBUNITS[cur][0], value: value / SUBUNITS[cur][1] };
+  return { cur: (cur || '').toUpperCase(), value };
+}
+
+// ---------- Quellen ----------
+// Jede Quelle liefert eine Liste von Zeilen: { label, name, currency, close, date, note, error, info }
+
+async function runOnvista(q, ctx) {
+  const OV = 'https://api.onvista.de/api/v1';
+  const PATH = { STOCK: 'stocks', FUND: 'funds', BOND: 'bonds', DERIVATIVE: 'derivatives', INDEX: 'indices', PRECIOUS_METAL: 'precious_metals', CURRENCY: 'currencies' };
+  const s = await ctx.json(`${OV}/instruments/search/facet?searchValue=${enc(q.isin)}`);
+  const items = [];
+  for (const f of s.facets || []) for (const r of f.results || []) items.push(r);
+  const inst = items.find(r => (r.isin || '').toUpperCase() === q.isin) || items[0];
+  if (!inst) throw new SourceError('notfound', 'ISIN nicht gefunden');
+  const type = inst.entityType;
+  const path = PATH[type] || String(type || '').toLowerCase() + 's';
+  const snap = await ctx.json(`${OV}/${path}/ISIN:${enc(inst.isin || q.isin)}/snapshot`);
+  const uid = (snap.instrument && snap.instrument.entityValue) || inst.entityValue;
+  const name = (snap.instrument && snap.instrument.name) || inst.name;
+  let nots = ((snap.quoteList && snap.quoteList.list) || []).filter(n => n.idNotation != null);
+  if (!nots.length) throw new SourceError('nodata', 'Keine Börsenplätze gefunden');
+  nots = sortByVenue(nots, n => n.market && n.market.name, q.venue).slice(0, 8);
+  return Promise.all(nots.map(async n => {
+    const label = (n.market && n.market.name) || 'Notierung ' + n.idNotation;
+    try {
+      const e = await ctx.json(`${OV}/instruments/${enc(type)}/${enc(uid)}/eod_history?idNotation=${enc(n.idNotation)}&range=M1&startDate=${addDays(q.date, -LOOKBACK_DAYS)}`);
+      const ts = e.datetimeLast || [], last = e.last || [];
+      const p = pickOnOrBefore(ts.map((t, i) => ({ date: tsToDate(t, 'Europe/Berlin'), close: last[i] })), q.date);
+      return { label, name, currency: e.isoCurrency || n.isoCurrency, close: p && p.close, date: p && p.date, error: p ? null : 'Kein Kurs im Zeitraum' };
+    } catch (err) {
+      return { label, name, error: err.message };
+    }
+  }));
+}
+
+async function runYahoo(q, ctx) {
+  const Y = 'https://query1.finance.yahoo.com';
+  let list = q.symbol ? [{ symbol: q.symbol }] : [];
+  try {
+    const s = await ctx.json(`${Y}/v1/finance/search?q=${enc(q.isin)}&quotesCount=10&newsCount=0`);
+    for (const it of s.quotes || []) list.push({ symbol: it.symbol, name: it.longname || it.shortname, exch: it.exchDisp || it.exchange });
+  } catch (e) { if (!list.length) throw e; }
+  list = sortByVenue(dedupe(list, x => x.symbol), x => x.exch, q.venue).slice(0, 6);
+  if (!list.length) throw new SourceError('notfound', 'ISIN nicht gefunden');
+  const p1 = Math.floor(Date.parse(addDays(q.date, -LOOKBACK_DAYS) + 'T00:00:00Z') / 1000);
+  const p2 = Math.floor(Date.parse(addDays(q.date, 1) + 'T23:59:59Z') / 1000);
+  return Promise.all(list.map(async sy => {
+    try {
+      const c = await ctx.json(`${Y}/v8/finance/chart/${enc(sy.symbol)}?period1=${p1}&period2=${p2}&interval=1d`);
+      const r = c.chart && c.chart.result && c.chart.result[0];
+      if (!r) throw new SourceError('nodata', (c.chart && c.chart.error && c.chart.error.description) || 'Keine Daten');
+      const closes = (r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close) || [];
+      const p = pickOnOrBefore((r.timestamp || []).map((t, i) => ({ date: tsToDate(t, r.meta.exchangeTimezoneName), close: closes[i] })), q.date);
+      return {
+        label: `${sy.symbol} · ${r.meta.fullExchangeName || r.meta.exchangeName || sy.exch || ''}`, name: sy.name || r.meta.longName,
+        currency: r.meta.currency, close: p && p.close, date: p && p.date,
+        error: p ? null : 'Kein Kurs im Zeitraum', note: 'Schlusskurs splitbereinigt',
+      };
+    } catch (err) {
+      return { label: sy.symbol, name: sy.name, error: err.message };
+    }
+  }));
+}
+
+async function runEodhd(q, ctx) {
+  const E = 'https://eodhd.com/api';
+  const k = enc(ctx.key);
+  let list = [];
+  if (q.symbol && q.symbol.includes('.')) { const [c, x] = q.symbol.split('.'); list.push({ Code: c, Exchange: x }); }
+  try {
+    const s = await ctx.json(`${E}/search/${enc(q.isin)}?api_token=${k}&fmt=json&limit=15`);
+    if (Array.isArray(s)) list.push(...s);
+  } catch (e) { if (!list.length) throw e; }
+  list = sortByVenue(dedupe(list, x => x.Code && x.Code + '.' + x.Exchange), x => x.Exchange, q.venue).slice(0, 6);
+  if (!list.length) throw new SourceError('notfound', 'ISIN nicht gefunden');
+  return Promise.all(list.map(async it => {
+    const sym = it.Code + '.' + it.Exchange;
+    try {
+      const d = await ctx.json(`${E}/eod/${enc(sym)}?from=${addDays(q.date, -LOOKBACK_DAYS)}&to=${q.date}&period=d&fmt=json&api_token=${k}`);
+      const p = pickOnOrBefore((Array.isArray(d) ? d : []).map(x => ({ date: x.date, close: x.close })), q.date);
+      return { label: sym, name: it.Name, currency: it.Currency, close: p && p.close, date: p && p.date,
+        error: p ? null : 'Kein Kurs im Zeitraum', note: '„close“ splitbereinigt' };
+    } catch (err) {
+      return { label: sym, name: it.Name, error: err.message };
+    }
+  }));
+}
+
+async function runTwelve(q, ctx) {
+  const T = 'https://api.twelvedata.com';
+  const k = enc(ctx.key);
+  let list = q.symbol ? [{ symbol: q.symbol }] : [];
+  try {
+    const s = await ctx.json(`${T}/symbol_search?symbol=${enc(q.isin)}&outputsize=10&apikey=${k}`);
+    if (s.status === 'error') throw new SourceError('http', s.message || 'Fehler');
+    list.push(...(s.data || []));
+  } catch (e) { if (!list.length) throw e; }
+  list = sortByVenue(dedupe(list, x => x.symbol && x.symbol + '|' + (x.mic_code || '')), x => x.exchange, q.venue).slice(0, 4);
+  if (!list.length) throw new SourceError('notfound', 'ISIN nicht gefunden');
+  return Promise.all(list.map(async it => {
+    const label = it.exchange ? `${it.symbol} · ${it.exchange}` : it.symbol;
+    try {
+      const mic = it.mic_code ? `&mic_code=${enc(it.mic_code)}` : '';
+      const t = await ctx.json(`${T}/time_series?symbol=${enc(it.symbol)}${mic}&interval=1day&start_date=${addDays(q.date, -LOOKBACK_DAYS)}&end_date=${addDays(q.date, 1)}&order=asc&apikey=${k}`);
+      if (t.status === 'error') throw new SourceError('http', t.message || 'Fehler');
+      const p = pickOnOrBefore((t.values || []).map(v => ({ date: String(v.datetime).slice(0, 10), close: parseFloat(v.close) })), q.date);
+      return { label, name: it.instrument_name, currency: (t.meta && t.meta.currency) || it.currency, close: p && p.close, date: p && p.date,
+        error: p ? null : 'Kein Kurs im Zeitraum' };
+    } catch (err) {
+      return { label, name: it.instrument_name, error: err.message };
+    }
+  }));
+}
+
+async function runAlpha(q, ctx) {
+  const A = 'https://www.alphavantage.co/query';
+  const k = enc(ctx.key);
+  const check = j => { const m = j['Error Message'] || j.Note || j.Information; if (m) throw new SourceError('http', m); };
+  let list = q.symbol ? [{ sym: q.symbol }] : [];
+  try {
+    const s = await ctx.json(`${A}?function=SYMBOL_SEARCH&keywords=${enc(q.isin)}&apikey=${k}`);
+    check(s);
+    for (const m of s.bestMatches || []) list.push({ sym: m['1. symbol'], name: m['2. name'], region: m['4. region'], cur: m['8. currency'] });
+  } catch (e) { if (!list.length) throw e; }
+  list = dedupe(list, x => x.sym).slice(0, 2);
+  if (!list.length) throw new SourceError('notfound', 'ISIN nicht gefunden (Alpha Vantage sucht nur nach Namen/Tickern – Symbol eintragen)');
+  return Promise.all(list.map(async it => {
+    const label = it.region ? `${it.sym} · ${it.region}` : it.sym;
+    try {
+      const r = await ctx.json(`${A}?function=TIME_SERIES_DAILY&symbol=${enc(it.sym)}&outputsize=compact&apikey=${k}`);
+      check(r);
+      const series = r['Time Series (Daily)'] || {};
+      const p = pickOnOrBefore(Object.entries(series).map(([d, v]) => ({ date: d, close: parseFloat(v['4. close']) })), q.date);
+      return { label, name: it.name, currency: it.cur, close: p && p.close, date: p && p.date,
+        error: p ? null : 'Kein Kurs – kostenloser Tarif liefert nur die letzten ~100 Handelstage' };
+    } catch (err) {
+      return { label, name: it.name, error: err.message };
+    }
+  }));
+}
+
+async function runOpenFigi(q, ctx) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (ctx.key) headers['X-OPENFIGI-APIKEY'] = ctx.key;
+  const r = await ctx.json('https://api.openfigi.com/v3/mapping', { method: 'POST', headers, body: JSON.stringify([{ idType: 'ID_ISIN', idValue: q.isin }]) });
+  const d = Array.isArray(r) ? r[0] : null;
+  if (d && d.error) throw new SourceError('http', d.error);
+  if (!d || !d.data || !d.data.length) throw new SourceError('notfound', (d && d.warning) || 'ISIN nicht gefunden');
+  return d.data.slice(0, 20).map(x => ({
+    label: `${x.ticker} · ${x.exchCode}`, name: x.name, info: true,
+    note: [x.securityType, x.marketSector].filter(Boolean).join(' · '),
+  }));
+}
+
+const SOURCES = [
+  { id: 'onvista', name: 'onvista', key: false, run: runOnvista,
+    info: 'Inoffizielle Schnittstelle, kein Schlüssel. Sucht per ISIN, liefert mehrere Börsenplätze, bei Fonds auch die Fondsgesellschaft.' },
+  { id: 'yahoo', name: 'Yahoo Finance', key: false, run: runYahoo,
+    info: 'Inoffizielle Schnittstelle, kein Schlüssel. Schlusskurse sind splitbereinigt.' },
+  { id: 'eodhd', name: 'EODHD', key: true, run: runEodhd, keyUrl: 'https://eodhd.com/register',
+    info: 'Kostenpflichtig, kostenloser Zugang mit 20 Abrufen am Tag. Suche per ISIN, gute Abdeckung von Xetra.' },
+  { id: 'twelve', name: 'Twelve Data', key: true, run: runTwelve, keyUrl: 'https://twelvedata.com/register',
+    info: 'Kostenloser Schlüssel, 8 Abrufe pro Minute. Europäische Börsen teils nur im Bezahltarif.' },
+  { id: 'alpha', name: 'Alpha Vantage', key: true, run: runAlpha, keyUrl: 'https://www.alphavantage.co/support/#api-key',
+    info: 'Kostenloser Schlüssel, 25 Abrufe am Tag, nur die letzten ~100 Handelstage. Findet ISINs meist nicht – Symbol eintragen.' },
+  { id: 'openfigi', name: 'OpenFIGI', key: 'optional', run: runOpenFigi, keyUrl: 'https://www.openfigi.com/api',
+    info: 'Keine Kurse – zeigt nur, unter welchen Tickern und Börsen die ISIN gehandelt wird. Schlüssel optional.' },
+];
+
+// ---------- Zustand ----------
+const keys = store.get('kt.keys', {});
+const enabled = store.get('kt.enabled', Object.fromEntries(SOURCES.map(s => [s.id, true])));
+const FIELDS = ['isin', 'date', 'ref', 'refCur', 'venue', 'symbol'];
+
+// ---------- Darstellung ----------
+const STATUS = {
+  ok: ['Kurs gefunden', 'ok'], info: ['Zuordnung', 'ok'], nodata: ['Kein Kurs zum Datum', 'warn'],
+  notfound: ['Nicht gefunden', 'warn'], blocked: ['Blockiert', 'bad'], timeout: ['Zeitüberschreitung', 'bad'],
+  http: ['Fehler', 'bad'], parse: ['Fehler', 'bad'], error: ['Fehler', 'bad'], nokey: ['Schlüssel fehlt', ''], running: ['läuft …', ''],
+};
+function badge(status) {
+  const [t, c] = STATUS[status] || [status, ''];
+  return h('span', { class: 'badge ' + c }, status === 'running' ? [h('span', { class: 'spin' }), ' '] : null, t);
+}
+function devClass(d) { const a = Math.abs(d); return a < 0.005 ? 'ok' : a < 0.02 ? 'warn' : 'bad'; }
+
+function rawBlock(raw) {
+  if (!raw || !raw.length) return null;
+  return h('details', { class: 'raw' }, h('summary', {}, `Rohdaten (${raw.length} Abruf${raw.length === 1 ? '' : 'e'})`),
+    raw.map(r => h('div', { class: 'call' },
+      h('div', { class: 'url' }, (r.status ? `HTTP ${r.status} · ` : '') + r.url),
+      h('pre', {}, (r.text || '').length > 20000 ? r.text.slice(0, 20000) + '\n… (gekürzt)' : r.text || ''))));
+}
+
+function quoteRow(r, q) {
+  const kids = [];
+  const price = r.close != null ? `${nf.format(r.close)} ${r.currency || ''}` : '';
+  kids.push(h('div', { class: 'q-top' }, h('span', { class: 'q-label' }, r.label), price && h('span', { class: 'q-price' }, price)));
+  const sub = [r.name, r.note].filter(Boolean).join(' · ');
+  if (sub) kids.push(h('div', { class: 'q-sub' }, sub));
+  if (r.close != null) {
+    const late = r.date < q.date;
+    kids.push(h('div', { class: 'q-sub' + (late ? ' warn' : '') },
+      `Kurs vom ${fmtDate(r.date)}` + (late ? ' – letzter Handelstag vor dem Wunschdatum' : '')));
+    if (r.eur != null) kids.push(h('div', { class: 'q-sub' }, `≈ ${nf4.format(r.eur)} EUR (EZB ${nf.format(r.fxRate)} vom ${fmtDate(r.fxDate)})`));
+    if (r.dev != null) kids.push(h('div', { class: 'q-dev ' + devClass(r.dev) },
+      `Abweichung ${nfPct.format(r.dev * 100)} %` + (r.devViaFx ? ' (über EZB-Kurs umgerechnet)' : '')));
+    if (r.fxNote) kids.push(h('div', { class: 'q-sub warn' }, r.fxNote));
+  }
+  if (r.error) kids.push(h('div', { class: 'q-sub warn' }, r.error));
+  return h('div', { class: 'q' + (venueMatch(r.label, q.venue) ? ' hl' : '') }, kids);
+}
+
+function renderSource(card, src, res, q) {
+  fill(card,
+    h('div', { class: 'res-head' }, h('h2', {}, src.name), badge(res.status)),
+    res.message ? h('p', { class: 'msg' }, res.message) : null,
+    (res.rows || []).map(r => quoteRow(r, q)),
+    rawBlock(res.raw));
+}
+
+// Abweichung zum Abrechnungskurs und Gegenwert in EUR ergänzen
+async function enrichRows(rows, q) {
+  for (const r of rows) {
+    if (r.close == null) continue;
+    const n = normCur(r.currency, r.close);
+    try {
+      if (n.cur && n.cur !== 'EUR') {
+        const fx = await ecbRate(n.cur, r.date);
+        r.eur = n.value / fx.rate; r.fxRate = fx.rate; r.fxDate = fx.date;
+      }
+      if (q.ref != null) {
+        if (!n.cur || n.cur === q.refCur) {
+          r.dev = n.value / q.ref - 1;
+        } else {
+          const a = n.cur === 'EUR' ? n.value : r.eur;
+          const fxRef = await ecbRate(q.refCur, q.date);
+          r.dev = a / (q.ref / fxRef.rate) - 1; r.devViaFx = true;
+        }
+      }
+    } catch (e) {
+      r.fxNote = 'EZB-Umrechnung nicht möglich: ' + e.message;
+      if (q.ref != null && (!n.cur || n.cur === q.refCur)) r.dev = n.value / q.ref - 1;
+    }
+  }
+}
+
+async function renderFx(card, q, curs) {
+  const list = [...curs].filter(c => c !== 'EUR').sort();
+  const kids = [h('div', { class: 'res-head' }, h('h2', {}, 'EZB-Referenzkurse'))];
+  const raw = [];
+  for (const c of list) {
+    try {
+      const fx = await ecbRate(c, q.date);
+      raw.push({ url: fx.url, status: 200, text: fx.text });
+      const late = fx.date < q.date;
+      kids.push(h('div', { class: 'q' },
+        h('div', { class: 'q-top' }, h('span', { class: 'q-label' }, `1 EUR = ${c}`), h('span', { class: 'q-price' }, nf.format(fx.rate))),
+        h('div', { class: 'q-sub' + (late ? ' warn' : '') }, `vom ${fmtDate(fx.date)}` + (late ? ' – letzter Veröffentlichungstag davor' : ''))));
+    } catch (e) {
+      kids.push(h('div', { class: 'q' }, h('div', { class: 'q-top' }, h('span', { class: 'q-label' }, c)), h('div', { class: 'q-sub warn' }, e.message)));
+    }
+  }
+  kids.push(h('p', { class: 'hint' }, 'Referenzkurs der EZB von ca. 14:15 Uhr – nicht identisch mit dem Devisenkurs der Bank auf der Abrechnung.'));
+  kids.push(rawBlock(raw));
+  fill(card, kids);
+}
+
+// ---------- Ablauf ----------
+function readForm() {
+  const v = id => $('#' + id).value;
+  return {
+    isin: v('isin').trim().toUpperCase().replace(/\s/g, ''),
+    date: v('date'),
+    ref: parseNum(v('ref')),
+    refCur: v('refCur'),
+    venue: v('venue').trim(),
+    symbol: v('symbol').trim().toUpperCase(),
+  };
+}
+function formError(msg) { const e = $('#formErr'); e.textContent = msg || ''; e.hidden = !msg; }
+
+async function runAll(ev) {
+  ev.preventDefault();
+  document.activeElement && document.activeElement.blur();   // Bildschirmtastatur schließen
+  const q = readForm();
+  if (!isinValid(q.isin)) return formError('ISIN ungültig – bitte prüfen (12 Zeichen, Prüfziffer).');
+  if (!q.date) return formError('Bitte ein Datum wählen.');
+  if (q.date > todayIso()) return formError('Das Datum liegt in der Zukunft.');
+  if (Number.isNaN(q.ref) || q.ref === 0) return formError('Kurs laut Abrechnung ist keine gültige Zahl.');
+  formError('');
+
+  const active = SOURCES.filter(s => enabled[s.id]);
+  if (!active.length) return formError('Keine Quelle aktiv – siehe „Quellen und Schlüssel“.');
+  const btn = $('#go');
+  btn.disabled = true; btn.textContent = 'Frage ab …';
+
+  const out = $('#results');
+  out.replaceChildren(h('p', { class: 'lead' }, `${q.isin} · ${fmtDate(q.date)}` + (q.ref != null ? ` · Abrechnung ${nf.format(q.ref)} ${q.refCur}` : '')));
+  const entry = { at: new Date().toISOString(), q, sources: [] };
+  const curs = new Set(['USD']);
+  if (q.refCur !== 'EUR') curs.add(q.refCur);
+
+  await Promise.all(active.map(async src => {
+    const card = h('section', { class: 'card' });
+    out.append(card);
+    renderSource(card, src, { status: 'running', rows: [] }, q);
+    const ctx = makeCtx(src);
+    let res;
+    if (src.key === true && !ctx.key) {
+      res = { status: 'nokey', message: 'Kein Schlüssel hinterlegt – unten unter „Quellen und Schlüssel“ eintragen.', rows: [] };
+    } else {
+      try {
+        const rows = await src.run(q, ctx);
+        const status = rows.some(r => r.close != null) ? 'ok' : rows.length && rows.every(r => r.info) ? 'info' : rows.length ? 'nodata' : 'notfound';
+        res = { status, rows };
+      } catch (e) {
+        res = { status: e.status || 'error', message: e.message, rows: [] };
+      }
+    }
+    res.raw = ctx.raw;
+    await enrichRows(res.rows, q);
+    for (const r of res.rows) if (r.close != null && r.currency) curs.add(normCur(r.currency, 0).cur);
+    renderSource(card, src, res, q);
+    entry.sources.push({ id: src.id, name: src.name, status: res.status, message: res.message || '', rows: res.rows });
+  }));
+
+  const fxCard = h('section', { class: 'card' }, h('div', { class: 'res-head' }, h('h2', {}, 'EZB-Referenzkurse'), badge('running')));
+  out.append(fxCard);
+  await renderFx(fxCard, q, curs);
+
+  entry.sources.sort((a, b) => SOURCES.findIndex(s => s.id === a.id) - SOURCES.findIndex(s => s.id === b.id));
+  const log = store.get('kt.log', []);
+  log.push(entry);
+  store.set('kt.log', log.slice(-500));
+  updateProtoCount();
+  btn.disabled = false; btn.textContent = 'Kurse abfragen';
+}
+
+// ---------- Protokoll ----------
+function updateProtoCount() { $('#protoCount').textContent = store.get('kt.log', []).length; }
+
+function exportCsv() {
+  const log = store.get('kt.log', []);
+  if (!log.length) { alert('Das Protokoll ist leer.'); return; }
+  const num = n => n == null || !isFinite(n) ? '' : String(n).replace('.', ',');
+  const cell = v => { v = v == null ? '' : String(v); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lines = [[
+    'Abfragezeit', 'ISIN', 'Datum', 'Kurs Abrechnung', 'Währung Abrechnung', 'Börsenplatz Abrechnung', 'Quelle', 'Status',
+    'Instrument / Börsenplatz', 'Name', 'Währung', 'Kurs', 'Kursdatum', 'Abweichung %', 'Hinweis',
+  ]];
+  for (const e of log) {
+    const base = [e.at, e.q.isin, e.q.date, num(e.q.ref), e.q.refCur, e.q.venue];
+    for (const s of e.sources) {
+      if (!s.rows.length) { lines.push([...base, s.name, s.status, '', '', '', '', '', '', s.message]); continue; }
+      for (const r of s.rows) {
+        lines.push([...base, s.name, r.close != null ? 'ok' : r.info ? 'info' : 'kein Kurs', r.label, r.name, r.currency,
+          num(r.close), r.date, r.dev != null ? num(+(r.dev * 100).toFixed(4)) : '', [r.note, r.error, r.fxNote].filter(Boolean).join(' · ')]);
+      }
+    }
+  }
+  const csv = '﻿' + lines.map(l => l.map(cell).join(';')).join('\r\n');
+  const name = `kurs-test-protokoll-${todayIso()}.csv`;
+  const file = new File([csv], name, { type: 'text/csv' });
+  // Auf dem iPhone über das Teilen-Menü (z. B. „In Dateien sichern“), sonst als Download
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: name }).catch(() => {});
+    return;
+  }
+  const a = h('a', { href: URL.createObjectURL(file), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+// ---------- Einstellungen ----------
+function renderSettings() {
+  $('#srcSettings').replaceChildren(...SOURCES.map(s => {
+    const cb = h('input', { type: 'checkbox', id: 'en-' + s.id, checked: !!enabled[s.id],
+      onchange: e => { enabled[s.id] = e.target.checked; store.set('kt.enabled', enabled); } });
+    const kids = [h('label', { class: 'head', for: 'en-' + s.id, style: 'color:inherit;margin:0;font-size:17px' }, cb, s.name), h('p', { class: 'hint' }, s.info)];
+    if (s.key) {
+      kids.push(h('label', { for: 'key-' + s.id }, s.key === true ? 'API-Schlüssel' : 'API-Schlüssel (optional)'));
+      kids.push(h('input', { id: 'key-' + s.id, type: 'password', value: keys[s.id] || '', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+        oninput: e => { keys[s.id] = e.target.value.trim(); store.set('kt.keys', keys); } }));
+      kids.push(h('p', { class: 'hint' }, h('a', { href: s.keyUrl, target: '_blank', rel: 'noopener' }, 'Schlüssel beantragen')));
+    }
+    return h('div', { class: 'src-set' }, kids);
+  }));
+}
+
+// ---------- Start ----------
+function init() {
+  $('#ver').textContent = 'v' + VERSION;
+  $('#refCur').replaceChildren(...CURRENCIES.map(c => h('option', { value: c }, c)));
+  const saved = store.get('kt.form', {});
+  for (const f of FIELDS) if (saved[f] != null) $('#' + f).value = saved[f];
+  if (!$('#date').value) $('#date').value = addDays(todayIso(), -1);
+  $('#date').max = todayIso();
+  $('#form').addEventListener('input', () => store.set('kt.form', Object.fromEntries(FIELDS.map(f => [f, $('#' + f).value]))));
+  $('#form').addEventListener('submit', runAll);
+  $('#exportBtn').addEventListener('click', exportCsv);
+  $('#clearBtn').addEventListener('click', () => {
+    if (confirm('Testprotokoll wirklich löschen?')) { store.set('kt.log', []); updateProtoCount(); }
+  });
+  renderSettings();
+  updateProtoCount();
+}
+init();
+</script>
+</body>
+</html>
