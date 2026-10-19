@@ -15,14 +15,15 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 - **Etappen:** Große Aufgaben in Etappen aufteilen. Nach jeder Etappe ein lauffähiger
   Zwischenstand mit eigener Versionsnummer (Commit), damit bei einem Abbruch nichts
   von vorn beginnen muss.
-- Jean arbeitet mobil am **iPad** (Safari). Alles muss dort voll bedienbar sein
-  (Touch, Bildschirmtastatur, Hoch- und Querformat).
+- Jean arbeitet mobil, **Hauptaugenmerk: iPhone** (Safari), daneben iPad. Alles muss
+  dort voll bedienbar sein (Touch, Bildschirmtastatur, Hoch- und Querformat).
+  Gestaltung zuerst für den schmalen iPhone-Bildschirm.
 
 ---
 
 ## Plattform und Speicherung (festgelegt)
 
-- Web-App, veröffentlicht über **GitHub Pages**, Nutzung als Home-Bildschirm-App am iPad.
+- Web-App, veröffentlicht über **GitHub Pages**, Nutzung als Home-Bildschirm-App am iPhone (und iPad).
 - Daten **nur lokal** im Browser (IndexedDB). Kein Server, keine Cloud-Synchronisation.
 - Pflicht: **Sicherung als Datei exportieren und wieder einlesen**, dazu eine
   Sicherungserinnerung (Safari kann Daten länger nicht genutzter Seiten löschen).
@@ -91,6 +92,8 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 
 1. **kurs-test.html** – ISIN und Datum eingeben, Kurs aus Kandidatenquellen abrufen,
    mit Abrechnungen vergleichen. Danach Entscheidung über die Kursquelle.
+   *Stand v0.1.0:* Quellen onvista, Yahoo, EODHD, Twelve Data, Alpha Vantage,
+   OpenFIGI (nur Zuordnung), EZB-Devisenkurse; Testprotokoll als CSV.
 2. **Grundgerüst** – Depots, Wertpapiere, Transaktionen, Sicherung/Wiederherstellung.
 3. **Bewertung** – Bestände zu jedem Datum (inkl. Kapitalmaßnahmen), Kursabruf und
    Kursspeicher, Devisenkurse.
