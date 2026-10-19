@@ -15,6 +15,10 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 - **Etappen:** Große Aufgaben in Etappen aufteilen. Nach jeder Etappe ein lauffähiger
   Zwischenstand mit eigener Versionsnummer (Commit), damit bei einem Abbruch nichts
   von vorn beginnen muss.
+- **Veröffentlichung:** Freigegebene und getestete Änderungen lädt Claude direkt auf
+  `main` hoch, ohne Pull Request. GitHub Pages veröffentlicht automatisch
+  (https://7zd5zyccrd-beep.github.io/FA/). Nach etwa einer Minute in der App „Neu laden“
+  tippen; die Versionsnummer zeigt, ob der neue Stand da ist.
 - Jean arbeitet mobil, **Hauptaugenmerk: iPhone** (Safari), daneben iPad. Alles muss
   dort voll bedienbar sein (Touch, Bildschirmtastatur, Hoch- und Querformat).
   Gestaltung zuerst für den schmalen iPhone-Bildschirm.
