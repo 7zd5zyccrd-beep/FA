@@ -410,7 +410,7 @@ export function txForm(view, id) {
       }
     } }, 'Buchung löschen'));
   }
-  form.append(h('datalist', { id: 'venue-list' }, ['Xetra', 'Tradegate', 'gettex', 'Frankfurt', 'Stuttgart', 'München', 'Quotrix', 'LS Exchange', 'Fondsgesellschaft', 'NYSE', 'Nasdaq', 'außerbörslich'].map(v => h('option', { value: v }))));
+  form.append(h('datalist', { id: 'venue-list' }, ['Xetra', 'Tradegate', 'gettex', 'Frankfurt', 'Stuttgart', 'München', 'Berlin', 'Düsseldorf', 'Hamburg', 'Hannover', 'Quotrix', 'LS Exchange', 'Fondsgesellschaft', 'NYSE', 'Nasdaq', 'außerbörslich'].map(v => h('option', { value: v }))));
   view.replaceChildren(head(existing ? 'Buchung bearbeiten' : 'Neue Buchung', { back: fallback }), ...top, form);
   fillCurrency(false);
   layout();

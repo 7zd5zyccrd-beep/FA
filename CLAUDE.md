@@ -125,6 +125,7 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 - **Nach Steuern:** nur die in Abrechnungen ausgewiesenen Steuern (inkl. Vorabpauschale,
   Erstattungen); keine latente Steuer auf unrealisierte Gewinne.
 - **Bewertung:** je Wertpapier ein fester Börsenplatz; Buchungen dürfen in anderer Währung sein.
+  Börsenplatz der Buchung ist freier Text; fehlende Plätze in der Vorschlagsliste auf Zuruf ergänzen.
   Fremdwährung über EZB-Referenzkurse, Anleihen in % vom Nennwert.
 - **Stückzinsen** sind Zinsertrag (gezahlte negativ), nicht Kursgewinn. Einstand nach
   Durchschnittskosten.
