@@ -76,6 +76,14 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 - **Offen:** Welche Kursquelle. Wird in Etappe 1 getestet, bevor entschieden wird.
   Problempunkte: Abdeckung deutscher Fonds/ETFs per ISIN, Abruf direkt aus dem
   Browser (CORS), Verlässlichkeit, Kosten.
+- **Stand Test (Okt. 2026):** onvista liefert Schlusskurse vom iPhone (über `eod_history`);
+  Yahoo und OpenFIGI werden vom Browser blockiert; EODHD, Twelve Data, Alpha Vantage
+  noch ohne Schlüssel ungetestet.
+- **Erinnerung an Jean:** Sobald die App im besprochenen Umfang funktioniert, an den
+  **EODHD-Schlüssel** erinnern (kostenlos, eodhd.com/register; Eintrag in der App unter
+  „Quellen und Schlüssel“) – als zweite, verlässlichere Quelle neben onvista.
+  Vorschlag dazu: je Abfrage nur einen Börsenplatz abrufen, um das Tageskontingent
+  (ca. 20 Abrufe) zu schonen.
 
 ---
 
