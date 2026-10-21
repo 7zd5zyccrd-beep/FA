@@ -1,8 +1,8 @@
-import { h, fmtEur, fmtNum, fmtDate, fmtShares, today, parseNum, numIn, uid } from '../util.js';
-import { head, iconBtn, list, chips, field, numInput, select, confirmSheet, toast } from '../ui.js';
+import { h, fmtEur, fmtNum, fmtDate, fmtShares, today, parseNum, numIn, uid, debounce, addDays } from '../util.js';
+import { head, iconBtn, list, chips, field, numInput, select, seg, confirmSheet, toast, readAsHints } from '../ui.js';
 import { state, save, remove, setMeta } from '../db.js';
-import { TX_TYPES, grossEur, taxSum, txTotal, normCur } from '../calc.js';
-import { model, params, sec, go } from '../ctx.js';
+import { TX_TYPES, Model, grossEur, taxSum, txTotal, normCur } from '../calc.js';
+import { model, params, sec, secName, depotName, go, goBack } from '../ctx.js';
 import { txRow } from './holdings.js';
 import { fxOn } from '../prices.js';
 
@@ -55,44 +55,68 @@ export function txList(view) {
 }
 
 // ---------- Formular ----------
+// Entwurf einer neuen Buchung: übersteht das Verlassen des Formulars und das Beenden der App
 const DRAFT_KEY = 'tx.draft';
+const loadDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; } };
+const saveDraft = data => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: new Date().toISOString(), data })); } catch { /* egal */ } };
+const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* egal */ } };
+
+const COMMON_CURS = ['EUR', 'USD', 'GBP', 'GBp', 'CHF'];
+const NUM_FIELDS = ['shares', 'price', 'amount', 'fees', 'accrued', 'kest', 'soli', 'kist', 'qst', 'ratio', 'fx'];
+const LABELS = {
+  sec: 'Wertpapier', date: 'Datum', shares: 'Stückzahl', price: 'Kurs', amount: 'Bruttobetrag', fx: 'Devisenkurs',
+  fees: 'Gebühren', accrued: 'Stückzinsen', kest: 'Kapitalertragsteuer', soli: 'Solidaritätszuschlag', kist: 'Kirchensteuer',
+  qst: 'Quellensteuer', ratio: 'Verhältnis', target: 'Neues Wertpapier',
+};
+// Welche Felder je Buchungsart gelten
+const KEEP = {
+  buy: ['shares', 'price', 'fees', 'accrued'], sell: ['shares', 'price', 'fees', 'accrued', 'kest', 'soli', 'kist'],
+  in: ['shares', 'price'], out: ['shares', 'price'], div: ['amount', 'fees', 'kest', 'soli', 'kist', 'qst'], interest: ['amount', 'fees', 'kest', 'soli', 'kist', 'qst'],
+  tax: ['kest', 'soli', 'kist'], split: ['ratio'], exchange: ['ratio'], spinoff: ['ratio', 'price'],
+};
+const WITH_CURRENCY = ['buy', 'sell', 'in', 'out', 'div', 'interest', 'spinoff'];
 
 export function txForm(view, id) {
   const p = params();
   const existing = id !== 'neu' ? state.txs.find(t => t.id === id) : null;
+  const fallback = existing ? `#/wp/${existing.secId}` : (p.wp ? `#/wp/${p.wp}` : '#/buchungen');
   if (id !== 'neu' && !existing) { view.replaceChildren(head('Nicht gefunden', { back: '#/buchungen' })); return; }
   if (!state.depots.length) {
     view.replaceChildren(head('Neue Buchung', { back: '#/buchungen' }),
       h('div', { class: 'card' }, h('p', {}, 'Lege zuerst ein Depot an.'), h('a', { class: 'btn block', href: '#/depot/neu?ret=' + encodeURIComponent('#/buchung/neu') }, 'Depot anlegen')));
     return;
   }
-  // Entwurf nach „Neues Wertpapier anlegen“ wiederherstellen
-  let draft = null;
-  try { draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { /* egal */ }
-  if (draft && !p.fromNew) draft = null;
-  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* egal */ }
 
-  const tx = existing ? { ...existing, ...(draft || {}) } : {
-    id: uid(), type: p.typ || 'buy', date: p.datum || today(), depotId: p.depot || (state.depots.length === 1 ? state.depots[0].id : (state.meta['set.lastDepot'] || state.depots[0].id)),
-    secId: p.wp || '', fx: 1, ...(p.plan ? { planId: p.plan, planDate: p.datum, note: 'Sparplan' } : {}),
-    ...(draft || {}),
+  // Entwurf: nach „Neues Wertpapier“ oder „Fortsetzen“ übernehmen, sonst anbieten
+  let draft = existing ? null : loadDraft();
+  let offer = null;
+  if (draft && !(p.fromNew || p.entwurf)) { offer = draft; draft = null; }
+  const defaultDepot = p.depot || (state.depots.length === 1 ? state.depots[0].id : (state.meta['set.lastDepot'] || state.depots[0].id));
+  const tx = existing ? { ...existing } : {
+    id: uid(), type: p.typ || 'buy', date: p.datum || today(), depotId: defaultDepot, secId: p.wp || '',
+    ...(p.plan ? { planId: p.plan, planDate: p.datum, note: 'Sparplan' } : {}),
+    ...(draft ? draft.data : {}),
   };
-  if (p.fromNew && p.newId) { if (p.target) tx.targetSecId = p.newId; else tx.secId = p.newId; }
-  if (!existing && p.plan) {
+  if (p.fromNew && p.newId) {
+    if (p.target) tx.targetSecId = p.newId;
+    else { tx.secId = p.newId; delete tx.currency; }   // neue Wertpapierwährung gilt
+  }
+  if (!existing && p.plan && !draft) {
     const plan = state.plans.find(x => x.id === p.plan);
     if (plan) { tx.secId = plan.secId; tx.depotId = plan.depotId; tx.planAmount = plan.amount; }
   }
-  const back = p.ret || (existing ? `#/wp/${existing.secId}` : (p.wp ? `#/wp/${p.wp}` : '#/buchungen'));
+  let refund = taxSum(tx) < 0;
+  // Ohne die bearbeitete Buchung (für „Bestand vorher“)
+  const mWithout = existing ? new Model({ ...state, txs: state.txs.filter(t => t.id !== existing.id) }) : model();
 
   const form = h('form', { class: 'form', novalidate: true, autocomplete: 'off' });
-  const errors = h('div');
   const summary = h('div', { class: 'card' });
-
-  // Felder
+  const abs = v => v == null ? v : Math.abs(v);
+  const qstShown = tx.qstCur != null ? tx.qstCur : tx.qst;
   const f = {
     type: select(Object.entries(TX_TYPES), tx.type),
     depot: select(state.depots.map(d => [d.id, d.name]), tx.depotId),
-    sec: select([['', 'Bitte wählen …'], ...state.securities.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).map(s => [s.id, s.name]), ['__new', '＋ Neues Wertpapier anlegen …']], tx.secId),
+    sec: select([['', 'Bitte wählen …'], ...state.securities.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).map(s => [s.id, s.name]), ['__new', '＋ Neues Wertpapier anlegen …']], tx.secId || ''),
     date: h('input', { type: 'date', value: tx.date, max: today() }),
     shares: numInput({ value: numIn(tx.shares) }),
     price: numInput({ value: numIn(tx.price) }),
@@ -101,37 +125,57 @@ export function txForm(view, id) {
     amount: numInput({ value: numIn(tx.amount) }),
     fees: numInput({ value: numIn(tx.fees), placeholder: '0,00' }),
     accrued: numInput({ value: numIn(tx.accrued), placeholder: '0,00' }),
-    kest: numInput({ value: numIn(tx.kest), placeholder: '0,00' }),
-    soli: numInput({ value: numIn(tx.soli), placeholder: '0,00' }),
-    kist: numInput({ value: numIn(tx.kist), placeholder: '0,00' }),
-    qst: numInput({ value: numIn(tx.qst), placeholder: '0,00' }),
+    kest: numInput({ value: numIn(abs(tx.kest)), placeholder: '0,00' }),
+    soli: numInput({ value: numIn(abs(tx.soli)), placeholder: '0,00' }),
+    kist: numInput({ value: numIn(abs(tx.kist)), placeholder: '0,00' }),
+    qst: numInput({ value: numIn(qstShown), placeholder: '0,00' }),
     ratio: numInput({ value: numIn(tx.ratio) }),
     target: select([['', 'Bitte wählen …'], ...state.securities.map(s => [s.id, s.name]), ['__new', '＋ Neues Wertpapier anlegen …']], tx.targetSecId || ''),
     venue: h('input', { value: tx.venue || '', list: 'venue-list', autocorrect: 'off', placeholder: 'z. B. Xetra' }),
-    note: h('textarea', { rows: 2 }, tx.note || ''),
+    note: h('textarea', { rows: 2, 'aria-label': 'Notiz' }, tx.note || ''),
   };
   const fxBtn = h('button', { type: 'button', class: 'btn small sec', style: 'margin-top:6px' }, 'EZB-Kurs vom Tag einsetzen');
-  const fxHint = h('div', { class: 'hint' }, 'Fremdwährung je 1 € laut Abrechnung, z. B. 1,0850.');
-
   const S = () => sec(f.sec.value) || null;
   const type = () => f.type.value;
   const isBond = () => (S() || {}).kind === 'bond';
+  const foreign = () => !!f.currency.value && normCur(f.currency.value).cur !== 'EUR';
+
+  // Währungen: Wertpapierwährung, übliche Währungen, Währungen der Börsenplätze und bisheriger Buchungen
+  const fillCurrency = reset => {
+    const s = S();
+    const secCur = (s && s.currency) || 'EUR';
+    const opts = [...new Set([secCur, ...COMMON_CURS,
+      ...((s && s.ov && s.ov.notations) || []).map(n => n.currency).filter(Boolean),
+      ...state.txs.map(t => t.currency).filter(Boolean)])];
+    const want = reset ? secCur : (f.currency.value || tx.currency || secCur);
+    f.currency.replaceChildren(...opts.map(c => h('option', { value: c }, c === 'GBp' || c === 'GBX' ? `${c} (Pence)` : c)));
+    f.currency.value = opts.includes(want) ? want : secCur;
+  };
 
   const fieldsBox = h('div');
   const section = (title, ...kids) => [h('h2', {}, title), h('div', { class: 'card' }, kids)];
-
-  const fillCurrency = () => {
+  const fxBox = h('div');
+  const curNote = h('div', { class: 'hint' });
+  const updateFx = () => {
     const s = S();
-    const cur = (s && s.currency) || 'EUR';
-    const opts = [...new Set([cur, normCur(cur).cur, 'EUR'])];
-    const keep = f.currency.value || tx.currency || cur;
-    f.currency.replaceChildren(...opts.map(c => h('option', { value: c }, c === 'GBp' || c === 'GBX' ? `${c} (Pence)` : c)));
-    f.currency.value = opts.includes(keep) ? keep : cur;
+    const cur = normCur(f.currency.value || 'EUR').cur;
+    const secCur = normCur((s && s.currency) || 'EUR').cur;
+    curNote.textContent = s && cur !== secCur
+      ? `Bewertet wird in ${secCur}${s.ov && s.ov.venue ? ' (' + s.ov.venue + ')' : ''}. Die Buchung in ${cur} ist trotzdem richtig – mit dem Devisenkurs der Abrechnung.` : '';
+    fxBox.replaceChildren(...(foreign() ? [field(`Devisenkurs (${cur} je 1 €)`, f.fx, 'Wie auf der Abrechnung, z. B. 1,0850.'), fxBtn] : []));
+    const qLabel = f.qst.closest('label');
+    if (qLabel) qLabel.querySelector('span').textContent = foreign() ? `Quellensteuer (${cur})` : 'Quellensteuer';
   };
+  const taxSegBox = h('div', { style: 'margin:10px 0 2px' });
+  const drawTaxSeg = () => taxSegBox.replaceChildren(seg([['debit', 'Belastung'], ['refund', 'Erstattung']], refund ? 'refund' : 'debit',
+    v => { refund = v === 'refund'; drawTaxSeg(); calc(); }));
+  const taxFields = withQst => h('div', {},
+    h('div', { class: 'grid2' }, field('Kapitalertragsteuer', f.kest), field('Solidaritätszuschlag', f.soli)),
+    h('div', { class: 'grid2' }, field('Kirchensteuer', f.kist), withQst ? field('Quellensteuer', f.qst) : h('span')));
+  const splitNote = h('div', { class: 'hint' });
 
   const layout = () => {
     const t = type();
-    const s = S();
     const unit = isBond() ? 'Nennwert' : 'Stück';
     const parts = [];
     parts.push(...section('Buchung',
@@ -142,172 +186,232 @@ export function txForm(view, id) {
     if (['buy', 'sell', 'in', 'out'].includes(t)) {
       parts.push(...section(t === 'in' || t === 'out' ? 'Stücke' : 'Ausführung',
         h('div', { class: 'grid2' },
-          field(unit, f.shares, isBond() ? 'z. B. 10.000' : 'auch Bruchstücke'),
+          field(unit, f.shares, isBond() ? 'z. B. 10000' : 'auch Bruchstücke'),
           field(isBond() ? 'Kurs in %' : (t === 'in' ? 'Einstandskurs' : 'Kurs'), f.price, t === 'in' ? 'für den Einstand' : null)),
-        field('Währung des Kurses', f.currency),
-        fxWrap(),
+        field('Währung des Kurses', f.currency), curNote, fxBox,
         ['buy', 'sell'].includes(t) ? field('Börsenplatz', f.venue) : null));
-      if (['buy', 'sell'].includes(t)) {
-        parts.push(...section('Kosten' + (t === 'sell' ? ' und Steuern' : ''),
-          h('div', { class: 'grid2' }, field('Gebühren (€)', f.fees), isBond() ? field('Stückzinsen (€)', f.accrued) : h('span')),
-          t === 'sell' ? taxFields(false) : null));
+      if (t === 'buy') parts.push(...section('Kosten', h('div', { class: 'grid2' }, field('Gebühren (€)', f.fees), isBond() ? field('Stückzinsen (€)', f.accrued) : h('span'))));
+      if (t === 'sell') {
+        parts.push(...section('Kosten', h('div', { class: 'grid2' }, field('Gebühren (€)', f.fees), isBond() ? field('Stückzinsen (€)', f.accrued) : h('span'))));
+        parts.push(...section('Steuern (€)', taxSegBox, taxFields(false)));
       }
     }
     if (['div', 'interest'].includes(t)) {
       parts.push(...section('Betrag',
         h('div', { class: 'grid2' }, field('Brutto', f.amount, 'vor allen Steuern'), field('Währung', f.currency)),
-        fxWrap(),
-        field('Gebühren (€)', f.fees)));
-      parts.push(...section('Steuern (€)', taxFields(true)));
+        fxBox, field('Gebühren (€)', f.fees)));
+      parts.push(...section('Steuern', taxFields(true), h('div', { class: 'hint' }, 'Kapitalertragsteuer, Soli und Kirchensteuer in €.')));
     }
     if (t === 'tax') {
-      parts.push(h('p', { class: 'small muted', style: 'margin:12px 4px 0' }, 'Für Steuern ohne Kauf oder Verkauf, z. B. die Vorabpauschale. Eine Erstattung mit Minus eintragen.'));
-      parts.push(...section('Steuern (€)', taxFields(false)));
+      parts.push(h('p', { class: 'small muted', style: 'margin:12px 4px 0' }, 'Für Steuern ohne Kauf oder Verkauf, z. B. die Vorabpauschale oder eine Erstattung.'));
+      parts.push(...section('Steuern (€)', taxSegBox, taxFields(false)));
     }
     if (t === 'split') {
-      parts.push(...section('Verhältnis', field('Neue Stücke je bisheriges Stück', f.ratio, 'Split 1:4 → 4 · Zusammenlegung 10:1 → 0,1')));
+      parts.push(...section('Verhältnis', field('Neue Stücke je bisheriges Stück', f.ratio, 'Split 1:4 → 4 · Zusammenlegung 10:1 → 0,1'), splitNote));
     }
     if (['exchange', 'spinoff'].includes(t)) {
       parts.push(...section(t === 'exchange' ? 'Umtausch' : 'Abspaltung',
         field(t === 'exchange' ? 'Neues Wertpapier' : 'Abgespaltenes Wertpapier', f.target),
         field('Neue Stücke je bisheriges Stück', f.ratio, t === 'exchange' ? 'Die bisherigen Stücke werden vollständig ausgebucht.' : 'Die bisherigen Stücke bleiben im Bestand.'),
-        t === 'spinoff' ? field('Kurs der neuen Aktie (optional)', f.price, 'Nur nötig, falls noch kein Kurs abrufbar ist.') : null));
+        t === 'spinoff' ? field('Kurs der neuen Aktie in € (optional)', f.price, 'Nur nötig, falls noch kein Kurs abrufbar ist.') : null));
     }
     parts.push(...section('Notiz', f.note));
     fieldsBox.replaceChildren(...parts);
-    fillCurrency();
+    drawTaxSeg();
     updateFx();
     calc();
   };
-  const fxBox = h('div');
-  const fxWrap = () => fxBox;
-  const updateFx = () => {
-    const show = f.currency.value && normCur(f.currency.value).cur !== 'EUR';
-    fxBox.replaceChildren(...(show ? [field(`Devisenkurs (${normCur(f.currency.value).cur} je 1 €)`, f.fx), fxHint, fxBtn] : []));
-  };
-  const taxFields = withQst => h('div', {},
-    h('div', { class: 'grid2' }, field('Kapitalertragsteuer', f.kest), field('Solidaritätszuschlag', f.soli)),
-    h('div', { class: 'grid2' }, field('Kirchensteuer', f.kist), withQst ? field('Quellensteuer', f.qst) : h('span')));
 
   const read = () => {
     const n = el => parseNum(el.value);
     const t = type();
     const o = { ...tx, type: t, depotId: f.depot.value, secId: f.sec.value, date: f.date.value, note: f.note.value.trim() };
-    for (const k of ['shares', 'price', 'amount', 'fees', 'accrued', 'kest', 'soli', 'kist', 'qst', 'ratio']) o[k] = n(f[k]);
-    o.currency = f.currency.value || undefined;
-    o.fx = o.currency && normCur(o.currency).cur !== 'EUR' ? n(f.fx) : 1;
+    for (const k of NUM_FIELDS) o[k] = n(f[k]);
+    o.currency = WITH_CURRENCY.includes(t) && t !== 'spinoff' ? f.currency.value || undefined : undefined;
+    if (o.currency && normCur(o.currency).cur !== 'EUR') { /* fx bleibt wie eingegeben */ } else delete o.fx;
+    const sign = refund && ['sell', 'tax'].includes(t) ? -1 : 1;
+    for (const k of ['kest', 'soli', 'kist']) if (o[k] != null && !Number.isNaN(o[k])) o[k] = Math.abs(o[k]) * sign;
+    delete o.qstCur;
+    if (['div', 'interest'].includes(t) && o.currency && normCur(o.currency).cur !== 'EUR' && o.qst != null && !Number.isNaN(o.qst)) {
+      o.qstCur = o.qst;
+      o.qst = o.fx > 0 ? o.qst / normCur(o.currency).div / o.fx : NaN;
+    }
     o.venue = f.venue.value.trim();
     o.targetSecId = ['exchange', 'spinoff'].includes(t) ? f.target.value : undefined;
-    // Felder, die für die Art nicht gelten, entfernen
-    const keep = {
-      buy: ['shares', 'price', 'fees', 'accrued', 'kest', 'soli', 'kist'], sell: ['shares', 'price', 'fees', 'accrued', 'kest', 'soli', 'kist'],
-      in: ['shares', 'price'], out: ['shares', 'price'], div: ['amount', 'fees', 'kest', 'soli', 'kist', 'qst'], interest: ['amount', 'fees', 'kest', 'soli', 'kist', 'qst'],
-      tax: ['kest', 'soli', 'kist'], split: ['ratio'], exchange: ['ratio'], spinoff: ['ratio', 'price'],
-    }[t];
-    for (const k of ['shares', 'price', 'amount', 'fees', 'accrued', 'kest', 'soli', 'kist', 'qst', 'ratio']) {
-      if (!keep.includes(k) || o[k] == null) delete o[k];   // NaN bleibt für die Prüfung stehen
-    }
+    for (const k of NUM_FIELDS) if (k !== 'fx' && (!KEEP[t].includes(k) || o[k] == null)) delete o[k];
+    if (o.fx == null) delete o.fx;
     if (!['buy', 'sell'].includes(t)) delete o.venue;
-    if (['split', 'tax', 'exchange'].includes(t)) { delete o.currency; o.fx = 1; }
+    if (!o.currency) delete o.currency;
+    if (!o.targetSecId) delete o.targetSecId;
+    if (!o.qstCur && o.qstCur !== 0) delete o.qstCur;
     delete o.planAmount;
     return o;
   };
 
+  // Prüfung je Feld: [{ k: Feldname, msg }]
   const validate = o => {
     const e = [];
-    const num = (k, label, cond = v => v > 0) => { if (o[k] == null || Number.isNaN(o[k]) || !cond(o[k])) e.push(label); };
-    if (!o.secId || o.secId === '__new') e.push('Wertpapier wählen');
-    if (!o.date) e.push('Datum angeben');
-    if (o.date > today()) e.push('Datum liegt in der Zukunft');
-    if (['buy', 'sell', 'in', 'out'].includes(o.type)) { num('shares', 'Stückzahl'); if (o.type !== 'in' && o.type !== 'out') num('price', 'Kurs'); }
-    if (['div', 'interest'].includes(o.type)) num('amount', 'Bruttobetrag');
-    if (['split', 'exchange', 'spinoff'].includes(o.type)) num('ratio', 'Verhältnis');
-    if (['exchange', 'spinoff'].includes(o.type) && (!o.targetSecId || o.targetSecId === '__new' || o.targetSecId === o.secId)) e.push('Neues Wertpapier wählen');
-    if (o.currency && normCur(o.currency).cur !== 'EUR' && ['buy', 'sell', 'div', 'interest'].includes(o.type)) num('fx', 'Devisenkurs');
-    for (const k of ['fees', 'accrued', 'kest', 'soli', 'kist', 'qst']) if (Number.isNaN(o[k])) e.push('Ungültige Zahl bei ' + k);
-    if (['sell', 'out'].includes(o.type) && o.shares > 0) {
-      const m = model();
-      let have = m.sharesAt(o.depotId + '|' + o.secId, o.date);
-      if (existing && existing.depotId === o.depotId && existing.secId === o.secId && existing.date <= o.date && ['sell', 'out'].includes(existing.type)) have += existing.shares;
-      if (o.shares > have + 1e-9) e.push(`Im Depot liegen am ${fmtDate(o.date)} nur ${fmtShares(have)} Stück`);
+    const need = (k, cond = v => v > 0, msg) => { if (o[k] == null || Number.isNaN(o[k]) || !cond(o[k])) e.push({ k, msg: msg || `${LABELS[k]} angeben` }); };
+    if (!o.secId || o.secId === '__new') e.push({ k: 'sec', msg: 'Wertpapier wählen' });
+    if (!o.date) e.push({ k: 'date', msg: 'Datum angeben' });
+    else if (o.date > today()) e.push({ k: 'date', msg: 'Datum liegt in der Zukunft' });
+    if (['buy', 'sell', 'in', 'out'].includes(o.type)) { need('shares'); if (['buy', 'sell'].includes(o.type)) need('price'); }
+    if (['div', 'interest'].includes(o.type)) need('amount');
+    if (['split', 'exchange', 'spinoff'].includes(o.type)) need('ratio');
+    if (['exchange', 'spinoff'].includes(o.type) && (!o.targetSecId || o.targetSecId === '__new' || o.targetSecId === o.secId)) e.push({ k: 'target', msg: 'Neues Wertpapier wählen' });
+    if (o.currency && normCur(o.currency).cur !== 'EUR' && ['buy', 'sell', 'div', 'interest'].includes(o.type)) need('fx', v => v > 0, 'Devisenkurs der Abrechnung angeben');
+    for (const k of ['fees', 'accrued', 'kest', 'soli', 'kist', 'price', 'shares', 'amount', 'ratio']) {
+      if (Number.isNaN(o[k]) && !e.some(x => x.k === k)) e.push({ k, msg: `${LABELS[k]}: keine gültige Zahl` });
     }
+    if (Number.isNaN(o.qst) && !e.some(x => x.k === 'qst' || x.k === 'fx')) e.push({ k: 'qst', msg: 'Quellensteuer: keine gültige Zahl' });
     return e;
   };
+  const showErrors = list => {
+    for (const el of form.querySelectorAll('.invalid')) el.classList.remove('invalid');
+    for (const el of form.querySelectorAll('.err')) el.remove();
+    for (const { k, msg } of list) {
+      const el = f[k];
+      if (!el) continue;
+      el.classList.add('invalid');
+      const lab = el.closest('label.field');
+      (lab || el.parentNode).append(h('div', { class: 'err' }, msg));
+    }
+    const first = list.length && f[list[0].k];
+    if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => first.focus({ preventScroll: true }), 350); }
+  };
+  form.addEventListener('input', e => {
+    const el = e.target;
+    if (el.classList.contains('invalid')) { el.classList.remove('invalid'); const err = el.closest('label.field') && el.closest('label.field').querySelector('.err'); if (err) err.remove(); }
+  });
 
   const calc = () => {
     const o = read();
     const s = S();
     const rows = [];
     const r = (label, v, cls) => rows.push(h('div', { class: 'sum ' + (cls || '') }, h('span', {}, label), h('span', {}, v)));
+    const signed = (v, plus) => (plus ? '+ ' : '− ') + fmtEur(Math.abs(v));
     if (['buy', 'sell', 'div', 'interest'].includes(o.type) && s) {
       const g = grossEur(o, s);
-      r(['div', 'interest'].includes(o.type) ? 'Brutto' : 'Kurswert', fmtEur(g));
-      if (o.accrued) r('Stückzinsen', fmtEur(o.accrued));
-      if (o.fees) r('Gebühren', (o.type === 'buy' ? '+ ' : '− ') + fmtEur(o.fees));
+      const div = ['div', 'interest'].includes(o.type);
+      r(div ? 'Brutto' : 'Kurswert', fmtEur(g));
+      if (o.accrued) r('Stückzinsen', signed(o.accrued, true));
+      if (o.fees) r('Gebühren', signed(o.fees, o.type === 'buy'));
       const tax = taxSum(o);
-      if (tax) r('Steuern', (o.type === 'buy' ? '+ ' : '− ') + fmtEur(tax));
+      if (tax && !Number.isNaN(tax)) r(tax < 0 ? 'Steuererstattung' : 'Steuern', signed(tax, o.type === 'buy' || tax < 0));
+      if (o.qstCur && foreign()) r('davon Quellensteuer', `${fmtNum(o.qstCur)} ${normCur(o.currency).cur} = ${fmtEur(o.qst)}`);
       const total = txTotal(o, s);
       r(o.type === 'buy' ? 'Belastung' : 'Gutschrift', fmtEur(total), 'total');
       if (tx.planAmount && o.type === 'buy') r('Sparrate laut Plan', fmtEur(tx.planAmount));
     } else if (o.type === 'tax') {
-      r(taxSum(o) < 0 ? 'Erstattung' : 'Belastung', fmtEur(Math.abs(taxSum(o))), 'total');
-    } else if (o.type === 'split' && o.ratio > 0 && s) {
-      const have = model().sharesAt(o.depotId + '|' + o.secId, o.date);
-      r('Bestand danach', `${fmtShares(have * o.ratio)} statt ${fmtShares(have)}`, 'total');
+      const t = taxSum(o);
+      if (!Number.isNaN(t)) r(t < 0 ? 'Erstattung' : 'Belastung', fmtEur(Math.abs(t)), 'total');
+    } else if (o.type === 'split' && s) {
+      const have = mWithout.sharesAt(o.depotId + '|' + o.secId, o.date);
+      if (o.ratio > 0) r('Bestand danach', `${fmtShares(have * o.ratio)} statt ${fmtShares(have)}`, 'total');
+      const others = mWithout.keys(k => k.endsWith('|' + o.secId) && !k.startsWith(o.depotId + '|') && mWithout.sharesAt(k, o.date) > 0)
+        .map(k => depotName(k.split('|')[0]));
+      splitNote.textContent = 'Gilt nur für dieses Depot.' + (others.length ? ` Das Wertpapier liegt auch in: ${others.join(', ')} – dort den Split ebenfalls buchen.` : '');
     }
     summary.replaceChildren(...(rows.length ? rows : [h('div', { class: 'small muted' }, 'Die Zusammenfassung erscheint nach der Eingabe.')]));
-    summary.hidden = false;
+  };
+
+  // Folgen einer Änderung für Bestand und Erträge prüfen (nur neu entstehende Probleme melden)
+  const problems = (m, key) => {
+    const res = [];
+    const [d, s] = key.split('|');
+    const neg = (m.pos.get(key) || []).find(e => e.n < -1e-6);
+    if (neg) res.push(`Am ${fmtDate(neg.d)} läge der Bestand von ${secName(s)} in ${depotName(d)} bei ${fmtShares(neg.n)} Stück.`);
+    for (const t of m.txs) {
+      if (t.depotId + '|' + t.secId !== key || !['div', 'interest'].includes(t.type)) continue;
+      // Erträge kurz nach einem Verkauf sind üblich; gemeldet wird nur ein Ertrag ohne Bestand im Vormonat
+      const had = [0, 10, 20, 31, 45].some(back => m.sharesAt(key, addDays(t.date, -back)) > 0);
+      if (!had) res.push(`${TX_TYPES[t.type]} vom ${fmtDate(t.date)} (${secName(s)}) hätte keinen Bestand.`);
+    }
+    return res;
+  };
+  const consequences = newTxs => {
+    const before = model(), after = new Model({ ...state, txs: newTxs });
+    const keys = new Set();
+    for (const t of [existing, ...newTxs.filter(t => t.id === tx.id)].filter(Boolean)) {
+      keys.add(t.depotId + '|' + t.secId);
+      if (t.targetSecId) keys.add(t.depotId + '|' + t.targetSecId);
+    }
+    const msgs = [];
+    for (const key of keys) {
+      const old = new Set(problems(before, key));
+      for (const m of problems(after, key)) if (!old.has(m)) msgs.push(m);
+    }
+    return msgs;
   };
 
   // Ereignisse
+  const persistDraft = debounce(() => { if (!existing) saveDraft(read()); }, 300);
   const toNewSecurity = which => {
     const o = read();
-    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...o, secId: which === 'sec' ? '' : o.secId, targetSecId: which === 'target' ? '' : o.targetSecId })); } catch { /* egal */ }
+    saveDraft({ ...o, secId: which === 'sec' ? '' : o.secId, targetSecId: which === 'target' ? '' : o.targetSecId });
     const ret = `#/buchung/${existing ? existing.id : 'neu'}?fromNew=1` + (which === 'target' ? '&target=1' : '');
     go('#/wertpapier/neu?ret=' + encodeURIComponent(ret));
   };
-  f.sec.addEventListener('change', () => { if (f.sec.value === '__new') toNewSecurity('sec'); else { f.currency.value = ''; layout(); } });
+  f.sec.addEventListener('change', () => { if (f.sec.value === '__new') toNewSecurity('sec'); else { fillCurrency(true); layout(); } });
   f.target.addEventListener('change', () => { if (f.target.value === '__new') toNewSecurity('target'); });
   f.type.addEventListener('change', layout);
   f.currency.addEventListener('change', () => { updateFx(); calc(); });
-  form.addEventListener('input', calc);
+  form.addEventListener('input', () => { calc(); persistDraft(); });
+  form.addEventListener('change', persistDraft);
+  readAsHints(form);
   fxBtn.addEventListener('click', async () => {
     const cur = normCur(f.currency.value).cur;
     fxBtn.disabled = true; fxBtn.textContent = 'Frage EZB ab …';
     try {
       const r = await fxOn(cur, f.date.value || today());
-      if (r) { f.fx.value = numIn(r.r); toast(`EZB-Kurs vom ${fmtDate(r.d)}: ${fmtNum(r.r, 4, 4)}`); calc(); }
+      if (r) { f.fx.value = numIn(r.r); toast(`EZB-Kurs vom ${fmtDate(r.d)}: ${fmtNum(r.r, 4, 4)}`); calc(); persistDraft(); }
       else toast('Kein EZB-Kurs gefunden');
     } catch (e) { toast('EZB nicht erreichbar: ' + e.message); }
     fxBtn.disabled = false; fxBtn.textContent = 'EZB-Kurs vom Tag einsetzen';
   });
+
   const saveBtn = h('button', { class: 'btn block', type: 'submit' }, 'Sichern');
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
     const o = read();
     const e = validate(o);
-    if (e.length) {
-      errors.replaceChildren(h('div', { class: 'banner bad' }, h('div', { class: 'main' }, h('b', {}, 'Bitte prüfen'), e.join(' · '))));
-      errors.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
+    showErrors(e);
+    if (e.length) return;
     if (!existing) o.seq = Date.now();
+    const newTxs = [...state.txs.filter(t => t.id !== o.id), o];
+    const warn = consequences(newTxs);
+    if (warn.length && !await confirmSheet('Bitte prüfen', warn.join(' '), 'Trotzdem sichern')) return;
     saveBtn.disabled = true;
     await save('txs', o);
+    if (!existing) clearDraft();
     await setMeta('set.lastDepot', o.depotId);
     toast('Buchung gesichert');
-    go(p.ret || (p.plan ? '#/sparplaene' : `#/wp/${o.secId}`));
+    goBack(p.plan ? '#/sparplaene' : fallback);
   });
 
-  form.append(fieldsBox, h('h2', {}, 'Zusammenfassung'), summary, errors, saveBtn);
+  const top = [];
+  if (offer) {
+    const d = offer.data || {};
+    const banner = h('div', { class: 'banner info' }, h('div', { class: 'main' },
+      h('b', {}, 'Unvollständige Buchung'),
+      `${TX_TYPES[d.type] || 'Buchung'}${d.secId ? ' · ' + secName(d.secId) : ''} vom ${fmtDate(String(offer.at).slice(0, 10))}, ${String(offer.at).slice(11, 16)} Uhr (UTC).`,
+      h('div', { class: 'btns', style: 'margin-top:8px' },
+        h('a', { class: 'btn small', href: '#/buchung/neu?entwurf=1' }, 'Fortsetzen'),
+        h('button', { class: 'btn small sec', type: 'button', onclick: () => { clearDraft(); banner.remove(); } }, 'Verwerfen'))));
+    top.push(banner);
+  }
+  form.append(fieldsBox, h('h2', {}, 'Zusammenfassung'), summary, saveBtn);
   if (existing) {
     form.append(h('button', { class: 'btn block danger mt', type: 'button', onclick: async () => {
-      if (await confirmSheet('Buchung löschen?', 'Die Buchung wird endgültig entfernt.', 'Löschen', true)) {
-        await remove('txs', existing.id); toast('Buchung gelöscht'); go(back);
+      const warn = consequences(state.txs.filter(t => t.id !== existing.id));
+      const text = 'Die Buchung wird endgültig entfernt.' + (warn.length ? ' Achtung: ' + warn.join(' ') : '');
+      if (await confirmSheet('Buchung löschen?', text, warn.length ? 'Trotzdem löschen' : 'Löschen', true)) {
+        await remove('txs', existing.id); toast('Buchung gelöscht'); goBack(fallback);
       }
     } }, 'Buchung löschen'));
   }
   form.append(h('datalist', { id: 'venue-list' }, ['Xetra', 'Tradegate', 'gettex', 'Frankfurt', 'Stuttgart', 'München', 'Quotrix', 'LS Exchange', 'Fondsgesellschaft', 'NYSE', 'Nasdaq', 'außerbörslich'].map(v => h('option', { value: v }))));
-  view.replaceChildren(head(existing ? 'Buchung bearbeiten' : 'Neue Buchung', { back }), form);
+  view.replaceChildren(head(existing ? 'Buchung bearbeiten' : 'Neue Buchung', { back: fallback }), ...top, form);
+  fillCurrency(false);
   layout();
 }

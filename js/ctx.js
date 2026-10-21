@@ -3,7 +3,7 @@ import { state } from './db.js';
 import { Model, KINDS } from './calc.js';
 import { daysBetween, today } from './util.js';
 
-export const VERSION = '0.9.0';
+export const VERSION = '0.9.1';
 
 let cache = { v: -1, m: null };
 export function model() {
@@ -18,7 +18,31 @@ export const secName = id => (sec(id) || {}).name || 'Unbekanntes Wertpapier';
 export const depotName = id => (depot(id) || {}).name || 'Unbekanntes Depot';
 export const kindName = k => KINDS[k] || 'Sonstiges';
 
-export function go(hash) { if (location.hash === hash) window.dispatchEvent(new HashChangeEvent('hashchange')); else location.hash = hash; }
+// Rückweg: Liste der aufgerufenen Ansichten; die Hauptbereiche der Tableiste beginnen sie neu
+const TAB_ROOTS = ['#/', '#/bestand', '#/buchungen', '#/auswertung', '#/mehr'];
+const pathOf = hash => (hash || '#/').split('?')[0].replace(/^#?\/?$/, '#/');
+let nav = [];
+try { nav = JSON.parse(sessionStorage.getItem('nav') || '[]'); } catch { /* egal */ }
+let replaceNext = false;
+export function trackNav(hash) {
+  hash = hash || '#/';
+  const path = pathOf(hash);
+  if (replaceNext) { nav.pop(); replaceNext = false; }
+  if (TAB_ROOTS.includes(path)) nav = [hash];
+  else {
+    const i = nav.findIndex(x => pathOf(x) === path);
+    nav = i >= 0 ? [...nav.slice(0, i), hash] : [...nav, hash];
+  }
+  try { sessionStorage.setItem('nav', JSON.stringify(nav.slice(-30))); } catch { /* egal */ }
+}
+export function goBack(fallback) {
+  if (nav.length >= 2) location.hash = nav[nav.length - 2];
+  else go(fallback || '#/');
+}
+
+// replace: aktuelle Ansicht (z. B. ein gespeichertes Formular) aus dem Rückweg entfernen
+export function go(hash, { replace = false } = {}) {
+  replaceNext = replace; if (location.hash === hash) window.dispatchEvent(new HashChangeEvent('hashchange')); else location.hash = hash; }
 export function rerender() { window.dispatchEvent(new HashChangeEvent('hashchange')); }
 
 // Abfrageparameter aus der Adresse nach dem #

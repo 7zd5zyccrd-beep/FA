@@ -1,5 +1,6 @@
 // Wiederverwendbare Bausteine der Oberfläche
-import { h, fmtEur, fmtPct } from './util.js';
+import { h, fmtEur, fmtPct, fmtNum, parseNum } from './util.js';
+import { goBack } from './ctx.js';
 
 const ICONS = {
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/>',
@@ -23,7 +24,7 @@ export function icon(name, cls) {
 // Seitenkopf: Titel, optional Zurück-Link und Aktionsknöpfe
 export function head(title, { back, actions = [] } = {}) {
   return h('div', { class: 'head' + (back ? ' sub' : '') },
-    back ? h('a', { class: 'back', href: back, 'aria-label': 'Zurück' }, icon('back'), '') : null,
+    back ? h('a', { class: 'back', href: back, 'aria-label': 'Zurück', onclick: e => { e.preventDefault(); goBack(back); } }, icon('back')) : null,
     h('h1', {}, title),
     actions);
 }
@@ -76,6 +77,20 @@ export function field(label, input, hint, err) {
 export function numInput(attrs = {}) {
   return h('input', { inputmode: 'decimal', autocomplete: 'off', enterkeyhint: 'next', ...attrs });
 }
+// Zeigt unter Zahlenfeldern mit Punkt, wie die Eingabe gelesen wird („gelesen als 10.000,00“)
+export function readAsHints(root) {
+  root.addEventListener('input', e => {
+    const el = e.target;
+    if (el.getAttribute('inputmode') !== 'decimal') return;
+    let hint = el.nextElementSibling && el.nextElementSibling.classList.contains('readas') ? el.nextElementSibling : null;
+    const v = parseNum(el.value);
+    const show = el.value.includes('.') && v != null;
+    if (!show) { if (hint) hint.remove(); return; }
+    if (!hint) { hint = h('div', { class: 'hint readas' }); el.after(hint); }
+    hint.textContent = Number.isNaN(v) ? 'keine gültige Zahl' : 'gelesen als ' + fmtNum(v, 2, 8);
+  });
+}
+
 export function select(options, value, attrs = {}) {
   const el = h('select', attrs);
   for (const o of options) {

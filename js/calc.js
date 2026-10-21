@@ -7,6 +7,10 @@ export const TX_TYPES = {
   tax: 'Steuerbuchung', in: 'Einlieferung', out: 'Auslieferung',
   split: 'Split / Zusammenlegung', exchange: 'Umtausch', spinoff: 'Abspaltung',
 };
+export const TX_SHORT = {
+  buy: 'Kauf', sell: 'Verkauf', div: 'Dividende', interest: 'Zinsen', tax: 'Steuer',
+  in: 'Einlieferung', out: 'Auslieferung', split: 'Split', exchange: 'Umtausch', spinoff: 'Abspaltung',
+};
 export const KINDS = { stock: 'Aktie', etf: 'ETF', fund: 'Aktiver Fonds', bond: 'Anleihe', other: 'Sonstiges' };
 
 // Untereinheiten, in denen manche Börsen notieren (z. B. London in Pence)
@@ -21,6 +25,7 @@ const EPS = 1e-9;
 const clean = n => Math.abs(n) < 1e-8 ? 0 : n;
 const MAX_STALE_PRICE = 14;   // Tage, ab denen ein gespeicherter Kurs als veraltet gilt
 const MAX_STALE_FX = 10;
+const FX_TYPES = ['buy', 'sell', 'div', 'interest', 'in', 'out'];
 
 // Kurswert einer Buchung in EUR (ohne Gebühren, Steuern, Stückzinsen)
 export function grossEur(tx, sec) {
@@ -121,6 +126,12 @@ export class Model {
     for (const s of this.splits.get(secId) || []) if (s.d > d) f *= s.r;
     return f;
   }
+  // Produkt der Split-Verhältnisse mit from < Splittag <= to
+  splitFactorBetween(secId, from, to) {
+    let f = 1;
+    for (const s of this.splits.get(secId) || []) if (s.d > from && s.d <= to) f *= s.r;
+    return f;
+  }
   // Kurs im Originalmaßstab des jeweiligen Tages: { p, cur, d, src }
   priceAt(secId, d) {
     const sec = this.secById.get(secId);
@@ -138,7 +149,8 @@ export class Model {
       for (let j = this.txs.length - 1; j >= 0; j--) {
         const t = this.txs[j];
         if (t.secId !== secId || t.date > d || !t.price || !['buy', 'sell', 'in', 'out'].includes(t.type)) continue;
-        if (!best || t.date > best.d) best = { p: t.price, cur: t.currency || sec.currency, d: t.date, src: 'buchung' };
+        // Abrechnungskurs gilt für die damalige Stückzahl: spätere Splits bis zum Stichtag herausrechnen
+        if (!best || t.date > best.d) best = { p: t.price / this.splitFactorBetween(secId, t.date, d), cur: t.currency || sec.currency, d: t.date, src: 'buchung' };
         break;
       }
     }
@@ -151,11 +163,11 @@ export class Model {
     const arr = this.fx.get(cur) || [];
     const i = lastIndexLE(arr, d);
     if (i >= 0 && daysBetween(arr[i].d, d) <= MAX_STALE_FX) return arr[i].r;
-    // Ersatz: Devisenkurs der jüngsten Buchung in dieser Währung
+    // Ersatz: Devisenkurs der jüngsten Buchung in dieser Währung (nur Buchungen mit echtem Devisenkurs)
     for (let j = this.txs.length - 1; j >= 0; j--) {
       const t = this.txs[j];
-      const sec = this.secById.get(t.secId);
-      if (t.date <= d && t.fx && normCur(t.currency || (sec && sec.currency)).cur === cur) return t.fx;
+      if (t.date > d || !(t.fx > 0) || !t.currency || !FX_TYPES.includes(t.type)) continue;
+      if (normCur(t.currency).cur === cur) return t.fx;
     }
     return i >= 0 ? arr[i].r : (arr.length ? arr[0].r : null);
   }
@@ -197,7 +209,8 @@ export class Model {
         let v = tx.type === 'exchange' ? this.valueOf(tx.secId, base, addDays(tx.date, -1)) : 0;
         if (!v) v = this.valueOf(tx.targetSecId, newShares, tx.date);
         if (!v && tx.price) v = newShares * tx.price / (tx.fx || 1);
-        return v ? [{ key, d: tx.date, amt: -v }, { key: k2, d: tx.date, amt: v }] : [];
+        // interne Umbuchung: hebt sich auf, wenn beide Wertpapiere ausgewertet werden
+        return v ? [{ key, d: tx.date, amt: -v, internal: true }, { key: k2, d: tx.date, amt: v, internal: true }] : [];
       }
       default: return [];
     }
@@ -212,38 +225,68 @@ export class Model {
   }
 
   // ---------- Rendite ----------
+  // Flüsse je Tag, Zufluss (in) und Abfluss (out) getrennt; interne Umbuchungen werden saldiert
+  dailyFlows(filter, a, b, mode) {
+    const m = new Map();
+    for (const f of this.flows(filter, a, b, mode)) {
+      if (!m.has(f.d)) m.set(f.d, { in: 0, out: 0, internal: 0 });
+      const x = m.get(f.d);
+      if (f.internal) x.internal += f.amt; else if (f.amt > 0) x.in += f.amt; else x.out -= f.amt;
+    }
+    for (const [d, x] of m) {
+      if (x.internal > EPS) x.in += x.internal; else if (x.internal < -EPS) x.out -= x.internal;
+      if (x.in < EPS && x.out < EPS) m.delete(d);
+    }
+    return m;
+  }
+  // Tatsächlicher Beginn: ohne Bestand am Vortag beginnt der Zeitraum mit dem ersten Fluss
+  effectiveStart(V, flows, a) {
+    if (V(addDays(a, -1)) > EPS) return a;
+    const dates = [...flows.keys()].sort();
+    return dates.length ? dates[0] : null;
+  }
+
   // filter: (key) → bool; a, b: Zeitraum (einschließlich); mode: 'pre' | 'post'
+  // Zuflüsse zählen zum Tagesanfang, Abflüsse zum Tagesende.
   perf(filter, a, b, mode = 'pre') {
     this.missing.clear();
     const keys = this.keys(filter);
     const V = d => keys.reduce((s, k) => s + this.valueKey(k, d), 0);
-    const byDate = new Map();
-    for (const f of this.flows(filter, a, b, mode)) byDate.set(f.d, (byDate.get(f.d) || 0) + f.amt);
-    const dates = [...byDate.keys()].sort();
+    const flows = this.dailyFlows(filter, a, b, mode);
+    const a0 = this.effectiveStart(V, flows, a);
+    if (!a0) {
+      return { a, b, days: daysBetween(addDays(a, -1), b), startValue: 0, endValue: V(b), inflow: 0, outflow: 0, net: 0, gain: 0,
+        twr: null, twrPa: null, irr: null, irrPeriod: null, missing: [...this.missing] };
+    }
+    a = a0;
     const start = addDays(a, -1);
     const V0 = V(start);
-    let prev = V0, growth = 1, inflow = 0, outflow = 0, lastBase = 0;
+    const dates = [...flows.keys()].sort();
+    if (dates[dates.length - 1] !== b) dates.push(b);
+    let prev = V0, prevDay = start, growth = 1, inflow = 0, outflow = 0, lastBase = 0;
     const cfs = V0 > EPS ? [{ t: 0, v: -V0 }] : [];
     for (const d of dates) {
-      const cf = byDate.get(d);
+      const f = flows.get(d) || NO_FLOW;
+      // Entwicklung bis zum Vortag, dann der Tag selbst mit seinen Flüssen
+      const dayBefore = addDays(d, -1);
+      if (f !== NO_FLOW && dayBefore > prevDay) { const Vy = V(dayBefore); if (prev > EPS) growth *= Vy / prev; prev = Vy; }
       const Vd = V(d);
-      growth *= hpr(prev, Vd, cf, lastBase);
-      if (prev > EPS) lastBase = Vd - cf;   // Wert vor dem Fluss am Ende des Abschnitts
+      growth *= step(prev, Vd, f, lastBase);
+      prevDay = d;
+      if (prev + f.in > EPS) lastBase = Vd + f.out;
       prev = Vd;
-      if (cf > 0) inflow += cf; else outflow -= cf;
-      cfs.push({ t: daysBetween(start, d), v: -cf });
+      inflow += f.in; outflow += f.out;
+      if (f.in || f.out) cfs.push({ t: daysBetween(start, d), v: f.out - f.in });
     }
-    const Vb = dates.length && dates[dates.length - 1] === b ? prev : V(b);
-    if ((!dates.length || dates[dates.length - 1] !== b) && prev > EPS) growth *= Vb / prev;
+    const Vb = prev;
     if (Vb > EPS) cfs.push({ t: daysBetween(start, b), v: Vb });
     const days = daysBetween(start, b);
-    const active = V0 > EPS || dates.length > 0;
-    const twr = active ? growth - 1 : null;
-    const irr = active ? xirr(cfs) : null;
+    const twr = growth - 1;
+    const irr = xirr(cfs);
     return {
       a, b, days, startValue: V0, endValue: Vb, inflow, outflow,
       net: inflow - outflow, gain: Vb - V0 - (inflow - outflow),
-      twr, twrPa: twr != null && days >= 365 ? Math.pow(1 + twr, 365 / days) - 1 : null,
+      twr, twrPa: days >= 365 ? Math.pow(1 + twr, 365 / days) - 1 : null,
       irr, irrPeriod: irr != null ? Math.pow(1 + irr, days / 365) - 1 : null,
       missing: [...this.missing],
     };
@@ -253,24 +296,27 @@ export class Model {
   series(filter, a, b, mode = 'pre', points = 120) {
     const keys = this.keys(filter);
     const V = d => keys.reduce((s, k) => s + this.valueKey(k, d), 0);
-    const byDate = new Map();
-    for (const f of this.flows(filter, a, b, mode)) byDate.set(f.d, (byDate.get(f.d) || 0) + f.amt);
+    const flows = this.dailyFlows(filter, a, b, mode);
+    a = this.effectiveStart(V, flows, a) || a;
     const start = addDays(a, -1);
     const total = daysBetween(start, b);
-    const step = Math.max(1, Math.floor(total / points));
+    const stepDays = Math.max(1, Math.floor(total / points));
     const samples = new Set();
-    for (let i = 0; i <= total; i += step) samples.add(addDays(start, i));
+    for (let i = 0; i <= total; i += stepDays) samples.add(addDays(start, i));
     samples.add(b);
-    const events = [...new Set([...samples, ...byDate.keys()])].sort();
+    const events = [...new Set([...samples, ...flows.keys()])].sort();
     const out = [];
-    let prev = V(start), growth = 1, invested = prev, lastBase = 0;
+    let prev = V(start), prevDay = start, growth = 1, invested = prev, lastBase = 0;
     for (const d of events) {
-      const cf = byDate.get(d) || 0;
+      const f = flows.get(d) || NO_FLOW;
+      const dayBefore = addDays(d, -1);
+      if (f !== NO_FLOW && dayBefore > prevDay) { const Vy = V(dayBefore); if (prev > EPS) growth *= Vy / prev; prev = Vy; }
       const Vd = V(d);
       if (d !== start) {
-        growth *= hpr(prev, Vd, cf, lastBase);
-        if (prev > EPS) lastBase = Vd - cf;   // Wert vor dem Fluss am Ende des Abschnitts
-        invested += cf;
+        growth *= step(prev, Vd, f, lastBase);
+        prevDay = d;
+        if (prev + f.in > EPS) lastBase = Vd + f.out;
+        invested += f.in - f.out;
       }
       prev = Vd;
       if (samples.has(d)) out.push({ d, v: Vd, invested, idx: growth });
@@ -304,12 +350,13 @@ export class Model {
       const tax = mode === 'post' ? taxSum(tx) : 0;
       if (own) taxes += taxSum(tx);
       switch (own ? tx.type : 'target:' + tx.type) {
-        case 'buy': n += tx.shares; cost += g + (tx.fees || 0) + tax; break;
+        case 'buy': n += tx.shares; cost += g + (tx.fees || 0) + tax; income -= tx.accrued || 0; break;
         case 'in': n += tx.shares; cost += tx.price ? g : this.valueOf(secId, tx.shares, tx.date); break;
         case 'sell': case 'out': {
           const part = n > EPS ? Math.min(1, tx.shares / n) : 0;
           const c = cost * part;
-          if (tx.type === 'sell') realized += g + (tx.accrued || 0) - (tx.fees || 0) - tax - c;
+          // Stückzinsen sind Zinsertrag (gezahlte negativ, erhaltene positiv), nicht Kursgewinn
+          if (tx.type === 'sell') { realized += g - (tx.fees || 0) - tax - c; income += tx.accrued || 0; }
           cost -= c; n -= tx.shares;
           break;
         }
@@ -395,11 +442,14 @@ export class Model {
   }
 }
 
-// Teilrendite eines Abschnitts (Fluss am Tagesende). Ohne Bestand wird eine Auszahlung, z. B. eine
-// Ausschüttung nach dem vollständigen Verkauf, dem letzten Abschnitt mit Bestand zugerechnet.
-function hpr(prev, value, cf, lastBase) {
-  if (prev > EPS) return (value - cf) / prev;
-  if (cf < -EPS && lastBase > EPS && value < EPS) return 1 - cf / lastBase;
+// Teilrendite eines Tages: Zufluss zum Tagesanfang, Abfluss zum Tagesende.
+// Ohne Bestand wird eine Auszahlung, z. B. eine Ausschüttung nach dem vollständigen Verkauf,
+// dem letzten Abschnitt mit Bestand zugerechnet.
+const NO_FLOW = { in: 0, out: 0 };
+function step(prev, value, f, lastBase) {
+  const base = prev + f.in;
+  if (base > EPS) return (value + f.out) / base;
+  if (f.out > EPS && lastBase > EPS && value < EPS) return 1 + f.out / lastBase;
   return 1;
 }
 

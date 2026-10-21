@@ -2,7 +2,7 @@ import { h, fmtEur, fmtNum, fmtDate, fmtShares, today, parseNum, numIn, uid, isi
 import { head, iconBtn, list, row, field, numInput, select, confirmSheet, toast, sheet } from '../ui.js';
 import { state, save, remove, setMeta, deletePricesOf, clearAll } from '../db.js';
 import { KINDS, duePlanDates } from '../calc.js';
-import { model, params, sec, secName, depotName, kindName, go, rerender, VERSION } from '../ctx.js';
+import { model, params, sec, secName, depotName, kindName, go, goBack, rerender, VERSION } from '../ctx.js';
 import { lookup, defaultNotation } from '../prices.js';
 import { runPriceUpdate, exportBackup, importBackup, loadDemo } from '../actions.js';
 
@@ -45,7 +45,7 @@ export function depotForm(view, id) {
     if (!name.value.trim()) { name.classList.add('invalid'); toast('Bitte einen Namen angeben.'); return; }
     await save('depots', { ...d, name: name.value.trim(), bank: bank.value.trim(), note: note.value.trim() });
     toast('Depot gesichert');
-    go(p.erst ? '#/buchung/neu' : back);
+    if (p.erst) go('#/buchung/neu', { replace: true }); else goBack(back);
   } },
   h('div', { class: 'card' }, field('Name', name), field('Bank', bank), field('Notiz', note)),
   h('button', { class: 'btn block', type: 'submit' }, 'Sichern'),
@@ -145,8 +145,9 @@ export function securityForm(view, id) {
     }
     await save('securities', o);
     toast('Wertpapier gesichert');
-    if (p.ret) go(p.ret + (p.ret.includes('?') ? '&' : '?') + 'newId=' + o.id);
-    else go(isNew ? `#/wp/${o.id}` : back);
+    if (p.ret) go(p.ret + (p.ret.includes('?') ? '&' : '?') + 'newId=' + o.id, { replace: true });
+    else if (isNew) go(`#/wp/${o.id}`, { replace: true });
+    else goBack(back);
   } },
   isNew ? h('div', { class: 'card' }, field('ISIN oder WKN', h('div', { style: 'display:flex;gap:8px;align-items:center' }, idIn, findBtn), null), findMsg) : null,
   h('h2', {}, 'Angaben'),
@@ -214,7 +215,7 @@ export function planForm(view, id) {
     e.preventDefault();
     const o = { ...p, secId: secSel.value, depotId: depSel.value, amount: parseNum(amount.value), every: +every.value, start: start.value, end: end.value || '', active: active.checked };
     if (!o.secId || !(o.amount > 0) || !o.start) { toast('Bitte Wertpapier, Betrag und ersten Termin angeben.'); return; }
-    await save('plans', o); toast('Sparplan gesichert'); go('#/sparplaene');
+    await save('plans', o); toast('Sparplan gesichert'); goBack('#/sparplaene');
   } },
   h('div', { class: 'card' },
     field('Wertpapier', secSel), field('Depot', depSel),

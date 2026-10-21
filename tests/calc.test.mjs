@@ -1,5 +1,6 @@
 // Prüffälle für den Rechenkern: node tests/calc.test.mjs
 import { Model, xirr, duePlanDates, grossEur } from '../js/calc.js';
+import { parseNum, addDays } from '../js/util.js';
 import assert from 'node:assert/strict';
 
 const near = (a, b, eps = 1e-6, msg) => assert.ok(Math.abs(a - b) < eps, `${msg || ''} erwartet ${b}, erhalten ${a}`);
@@ -153,6 +154,76 @@ test('Sparplan: fällige Termine', () => {
   const plan = { id: 'p', active: true, start: '2024-01-31', every: 1 };
   const due = duePlanDates(plan, [{ planId: 'p', planDate: '2024-01-31' }], '2024-04-30');
   assert.deepEqual(due, ['2024-02-29', '2024-03-31', '2024-04-30']);
+});
+
+test('Zahlen einlesen (deutsche Schreibweise)', () => {
+  assert.equal(parseNum('10.000'), 10000);
+  assert.equal(parseNum('10.000,50'), 10000.5);
+  assert.equal(parseNum('1,5'), 1.5);
+  assert.equal(parseNum('10.5'), 10.5);
+  assert.equal(parseNum('\u22123,2'), -3.2);
+  assert.ok(Number.isNaN(parseNum('1.23,4')));
+  assert.equal(parseNum(''), null);
+});
+
+test('Split ohne abgerufene Kurse: Wert bleibt, Devisen unberührt', () => {
+  const data = base();
+  data.securities = [{ id: 'U', currency: 'USD', kind: 'stock' }];
+  data.txs = [
+    { id: 1, type: 'buy', date: '2024-01-02', depotId: 'D', secId: 'U', shares: 10, price: 110, currency: 'USD', fx: 1.10 },
+    { id: 2, type: 'split', date: '2024-06-03', depotId: 'D', secId: 'U', ratio: 4 },
+  ];
+  const m = new Model(data);
+  near(m.valueKey('D|U', '2024-05-31'), 1000, 1e-9, 'vor Split');
+  near(m.valueKey('D|U', '2024-06-03'), 1000, 1e-9, 'nach Split');
+  near(m.fxAt('USD', '2024-12-31'), 1.10, 1e-12, 'Devisenkurs nicht vom Split überschrieben');
+  near(m.perf(() => true, '2024-01-02', '2024-12-31').twr, 0, 1e-9);
+});
+
+test('Kauftag zählt: Kauf 100, Schluss 110 → +10 %', () => {
+  const data = base();
+  data.prices.set('A', P([['2024-03-01', 110]]));
+  data.txs = [{ id: 1, type: 'buy', date: '2024-03-01', depotId: 'D', secId: 'A', shares: 10, price: 100 }];
+  const p = new Model(data).perf(() => true, '2024-03-01', '2024-03-01');
+  near(p.twr, 0.10, 1e-9); near(p.gain, 100, 1e-9);
+});
+
+test('Kauf und Verkauf am selben Tag getrennt', () => {
+  const data = base();
+  data.prices.set('A', P([['2024-03-01', 110]]));
+  data.txs = [
+    { id: 1, type: 'buy', date: '2024-03-01', depotId: 'D', secId: 'A', shares: 10, price: 100 },
+    { id: 2, type: 'sell', date: '2024-03-01', depotId: 'D', secId: 'A', shares: 5, price: 105 },
+  ];
+  const p = new Model(data).perf(() => true, '2024-03-01', '2024-03-01');
+  near(p.twr, (550 + 525) / 1000 - 1, 1e-9); near(p.gain, 75, 1e-9);
+});
+
+test('Beginn = erster Kauf, keine Hochrechnung unter einem Jahr', () => {
+  const data = base();
+  data.securities = [sec, { id: 'N', currency: 'EUR', kind: 'stock' }];
+  data.prices.set('A', P([['2021-01-04', 100], ['2024-12-31', 150]]));
+  data.prices.set('N', P([['2024-12-22', 50], ['2024-12-31', 55]]));
+  data.txs = [
+    { id: 1, type: 'buy', date: '2021-01-04', depotId: 'D', secId: 'A', shares: 10, price: 100 },
+    { id: 2, type: 'buy', date: '2024-12-22', depotId: 'D', secId: 'N', shares: 10, price: 50 },
+  ];
+  const p = new Model(data).perf(k => k === 'D|N', '2021-01-04', '2024-12-31');
+  assert.equal(p.a, '2024-12-22');
+  assert.equal(p.days, 10);
+  assert.equal(p.twrPa, null);
+  near(p.twr, 0.10, 1e-9);
+});
+
+test('Anleihe: gezahlte Stückzinsen mindern die Zinserträge', () => {
+  const data = base();
+  data.securities = [{ id: 'B', currency: 'EUR', kind: 'bond' }];
+  data.prices.set('B', P([['2024-01-02', 100]]));
+  data.txs = [
+    { id: 1, type: 'buy', date: '2024-01-02', depotId: 'D', secId: 'B', shares: 10000, price: 100, accrued: 50 },
+    { id: 2, type: 'interest', date: '2024-07-01', depotId: 'D', secId: 'B', amount: 100 },
+  ];
+  near(new Model(data).costBasis('D|B', '2024-12-31').income, 50, 1e-9);
 });
 
 console.log(`\n${n} Prüffälle bestanden.`);

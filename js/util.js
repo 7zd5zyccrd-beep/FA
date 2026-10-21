@@ -69,17 +69,27 @@ function nf(min, max) {
   const k = min + '|' + max;
   return nfCache[k] || (nfCache[k] = new Intl.NumberFormat('de-DE', { minimumFractionDigits: min, maximumFractionDigits: max }));
 }
-export const fmtNum = (n, min = 2, max = 2) => n == null || !isFinite(n) ? '–' : nf(min, max).format(n);
-export const fmtEur = n => n == null || !isFinite(n) ? '–' : nf(2, 2).format(n) + ' €';
+const minus = t => t.replace('-', '\u2212');
+export const fmtNum = (n, min = 2, max = 2) => n == null || !isFinite(n) ? '–' : minus(nf(min, max).format(n));
+export const fmtEur = n => n == null || !isFinite(n) ? '–' : minus(nf(2, 2).format(n)) + '\u00a0€';
 export const fmtPct = (n, sign = true) => n == null || !isFinite(n) ? '–'
-  : (sign && n > 0 ? '+' : '') + nf(2, 2).format(n * 100) + ' %';
-export const fmtShares = n => n == null ? '–' : nf(0, 6).format(n);
+  : (sign && n > 0 ? '+' : '') + minus(nf(2, 2).format(n * 100)) + '\u00a0%';
+export const fmtShares = n => n == null ? '–' : minus(nf(0, 6).format(n));
+// Deutsche Schreibweise: Komma = Dezimaltrenner, Punkte in Dreiergruppen = Tausenderpunkte.
+// Ohne Komma gilt „10.000“ als zehntausend, „10.5“ als zehneinhalb. Ungültig → NaN, leer → null.
+const THOUSANDS = /^[-+]?\d{1,3}(\.\d{3})+$/;
 export function parseNum(v) {
-  let t = String(v ?? '').trim().replace(/\s|€|%/g, '');
+  let t = String(v ?? '').trim().replace(/[\s\u00a0€%]/g, '').replace(/\u2212/g, '-');
   if (!t) return null;
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
-  const n = Number(t);
-  return isFinite(n) ? n : NaN;
+  if (t.includes(',')) {
+    const parts = t.split(',');
+    if (parts.length > 2) return NaN;
+    let [int, dec] = parts;
+    if (int.includes('.')) { if (!THOUSANDS.test(int)) return NaN; int = int.replace(/\./g, ''); }
+    t = int + '.' + dec;
+  } else if (THOUSANDS.test(t)) t = t.replace(/\./g, '');
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return NaN;
+  return Number(t);
 }
 // Zahl für ein Eingabefeld (deutsches Format, ohne Tausenderpunkte)
 export const numIn = n => n == null || !isFinite(n) ? '' : String(+n.toFixed(8)).replace('.', ',');

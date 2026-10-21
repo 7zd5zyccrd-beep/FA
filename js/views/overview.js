@@ -1,4 +1,4 @@
-import { h, fmtEur, fmtPct, fmtDate, addDays, today } from '../util.js';
+import { h, fmtEur, fmtPct, fmtDate, addDays, today, daysBetween } from '../util.js';
 import { head, iconBtn, kpi, money, chips, list, row, signCls, toast } from '../ui.js';
 import { lineChart, allocation } from '../chart.js';
 import { state } from '../db.js';
@@ -33,25 +33,33 @@ export function overview(view) {
   // Gesamtwert und Tagesveränderung
   const pos = m.positions(t, () => true, mode);
   const total = pos.reduce((s, p) => s + p.value, 0);
-  const lastPriceDate = pos.reduce((d, p) => p.price && p.price.d > d ? p.price.d : d, '');
-  const day = lastPriceDate ? m.perf(() => true, lastPriceDate, lastPriceDate, mode) : null;
+  const stored = pos.filter(p => p.price && p.price.src !== 'buchung');
+  const lastPriceDate = stored.reduce((d, p) => p.price.d > d ? p.price.d : d, '');
+  // Tagesveränderung nur, wenn beide Kurse gespeichert und aktuell sind
+  let day = null;
+  if (lastPriceDate && daysBetween(lastPriceDate, t) <= 4 && stored.length === pos.length) {
+    const prevOk = pos.every(p => { const pr = m.priceAt(p.secId, addDays(lastPriceDate, -1)); return pr && pr.src !== 'buchung' && daysBetween(pr.d, lastPriceDate) <= 5; });
+    if (prevOk) day = m.perf(() => true, lastPriceDate, lastPriceDate, mode);
+  }
   const dayPct = day && day.startValue > 0 ? day.gain / day.startValue : null;
   out.push(h('div', { class: 'card hero' },
     h('div', { class: 'label' }, 'Gesamtwert'),
     h('div', { class: 'big' }, fmtEur(total)),
-    day ? h('div', { class: 'delta ' + signCls(day.gain) }, `${day.gain > 0 ? '+' : ''}${fmtEur(day.gain)} (${fmtPct(dayPct)}) am ${fmtDate(lastPriceDate, true)}`) : null,
-    h('div', { class: 'tiny muted', style: 'margin-top:4px' }, lastPriceDate ? `Kursstand ${fmtDate(lastPriceDate)}` : 'Noch keine Kurse', state.meta.lastPriceUpdate ? ` · abgerufen ${fmtDate(state.meta.lastPriceUpdate.slice(0, 10))}` : '')));
+    day && day.startValue > 0 ? h('div', { class: 'delta ' + signCls(day.gain) }, `${day.gain > 0 ? '+' : ''}${fmtEur(day.gain)} (${fmtPct(dayPct)}) zum Vortag`) : null,
+    h('div', { class: 'tiny muted', style: 'margin-top:4px' }, lastPriceDate ? `Kursstand ${fmtDate(lastPriceDate, true)}` : 'Noch keine abgerufenen Kurse', state.meta.lastPriceUpdate ? ` · abgerufen ${fmtDate(state.meta.lastPriceUpdate.slice(0, 10))}` : '')));
 
   // Kennzahlen
   const all = m.perf(() => true, m.firstDate(), t, mode);
   const ytd = periodRange('ytd');
   const y = m.perf(() => true, ytd.a, ytd.b, mode);
-  const longTwr = all.twrPa != null ? all.twrPa : all.twr;
+  const pa = all.days >= 365;
+  const longTwr = pa ? all.twrPa : all.twr;
+  const irrShown = pa ? all.irr : all.irrPeriod;
   out.push(h('div', { class: 'kpis k4' },
     kpi('Gewinn seit Beginn', money(all.gain, true), mode === 'post' ? 'nach Steuern' : 'vor Steuern'),
-    kpi('Rendite lfd. Jahr', fmtPct(y.twr), 'zeitgewichtet', signCls(y.twr)),
-    kpi('Rendite seit Beginn', fmtPct(longTwr), all.twrPa != null ? 'zeitgewichtet, p. a.' : 'zeitgewichtet', signCls(longTwr)),
-    kpi('Interner Zinsfuß', fmtPct(all.irr), 'seit Beginn, p. a.', signCls(all.irr))));
+    kpi('Rendite lfd. Jahr', fmtPct(y.twr), y.twr != null ? `zeitgewichtet${y.a > ytd.a ? ', seit ' + fmtDate(y.a) : ''}` : 'kein Bestand', signCls(y.twr)),
+    kpi('Rendite seit Beginn', fmtPct(longTwr), pa ? 'zeitgewichtet, p. a.' : `zeitgewichtet, seit ${fmtDate(all.a)}`, signCls(longTwr)),
+    kpi('Interner Zinsfuß', fmtPct(irrShown), pa ? 'seit Beginn, p. a.' : `seit ${fmtDate(all.a)}`, signCls(irrShown))));
 
   // Verlauf
   const chartKey = lsGet('ov.chart', 'all');

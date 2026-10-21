@@ -1,5 +1,5 @@
 import { h, fmtEur, fmtPct, fmtShares, fmtDate, fmtNum, today, addDays, parseNum, numIn } from '../util.js';
-import { head, iconBtn, list, row, chips, kpi, money, pct, signCls, sheet, field, numInput, confirmSheet, toast } from '../ui.js';
+import { head, iconBtn, list, row, chips, seg, kpi, money, pct, signCls, sheet, field, numInput, confirmSheet, toast } from '../ui.js';
 import { lineChart } from '../chart.js';
 import { state, putPrices, deletePrice } from '../db.js';
 import { TX_TYPES, txTotal, normCur } from '../calc.js';
@@ -88,12 +88,15 @@ export function securityDetail(view, id) {
   const drawPerf = key => {
     const { a, b } = periodRange(key);
     const r = m.perf(filter, a, b, mode);
+    const pa = r.days >= 365;
     perfBox.replaceChildren(
-      chips([['ytd', 'Lfd. Jahr'], ['1y', '1 Jahr'], ['3y', '3 Jahre'], ['all', 'Seit Beginn']], key, drawPerf),
-      h('div', { class: 'kpis', style: 'margin:4px 0 0' },
-        kpi('Zeitgewichtet', fmtPct(r.twr), r.twrPa != null ? `${fmtPct(r.twrPa)} p. a.` : `${fmtDate(a)} – ${fmtDate(b)}`, signCls(r.twr)),
-        kpi('Interner Zinsfuß', fmtPct(r.irr), 'p. a.', signCls(r.irr)),
-        kpi('Gewinn', money(r.gain, true), mode === 'post' ? 'nach Steuern' : 'vor Steuern')));
+      seg([['ytd', 'Lfd. J.'], ['1y', '1 J'], ['3y', '3 J'], ['all', 'Max']], key, drawPerf),
+      r.twr == null ? h('p', { class: 'small muted' }, 'In diesem Zeitraum kein Bestand.') :
+        h('div', { class: 'kpis k3 flat' },
+          kpi('Zeitgewichtet', fmtPct(pa ? r.twrPa : r.twr), pa ? 'p. a.' : 'seit ' + fmtDate(r.a), signCls(r.twr)),
+          kpi('Zinsfuß', fmtPct(pa ? r.irr : r.irrPeriod), pa ? 'p. a.' : 'im Zeitraum', signCls(r.irr)),
+          kpi('Gewinn', money(r.gain, true), mode === 'post' ? 'nach Steuern' : 'vor Steuern')),
+      h('a', { class: 'small', href: '#/auswertung', onclick: () => { try { const st = JSON.parse(localStorage.getItem('ana.state') || '{}'); localStorage.setItem('ana.state', JSON.stringify({ ...st, scope: 'sec', sec: id })); } catch { /* egal */ } } }, 'Weitere Zeiträume in der Auswertung ›'));
   };
   drawPerf('all');
   out.push(h('h2', {}, 'Rendite'), h('div', { class: 'card' }, perfBox));

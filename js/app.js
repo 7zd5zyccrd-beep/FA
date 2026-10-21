@@ -1,6 +1,7 @@
 import { h, $ } from './util.js';
 import { icon } from './ui.js';
 import { open } from './db.js';
+import { trackNav } from './ctx.js';
 import { overview } from './views/overview.js';
 import { holdings, securityDetail } from './views/holdings.js';
 import { txList, txForm } from './views/txs.js';
@@ -41,6 +42,7 @@ function render() {
     a.classList.toggle('on', on);
     if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
+  trackNav(location.hash);
   const samePage = path === lastPath;
   const y = window.scrollY;
   try {

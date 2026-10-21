@@ -48,7 +48,7 @@ export function analysis(view) {
   }
 
   const r = m.perf(filter, a, b, mode);
-  out.push(h('p', { class: 'small muted', style: 'margin:0 4px 10px' }, `${fmtDate(a)} – ${fmtDate(b)} · ${r.days} Tage · ${mode === 'post' ? 'nach' : 'vor'} Steuern`));
+  out.push(h('p', { class: 'small muted', style: 'margin:0 4px 10px' }, `${fmtDate(r.a)} – ${fmtDate(b)} · ${r.days} Tage · ${mode === 'post' ? 'nach' : 'vor'} Steuern` + (r.a > a ? ' · Beginn mit dem ersten Kauf' : '')));
   if (r.twr == null) {
     out.push(h('div', { class: 'list' }, h('div', { class: 'empty' }, 'In diesem Zeitraum gab es keinen Bestand.')));
     view.replaceChildren(...out);
@@ -56,7 +56,9 @@ export function analysis(view) {
   }
   out.push(h('div', { class: 'kpis' },
     kpi('Zeitgewichtete Rendite', fmtPct(r.twr), r.twrPa != null ? `${fmtPct(r.twrPa)} p. a.` : 'im Zeitraum', signCls(r.twr)),
-    kpi('Interner Zinsfuß', r.irr != null ? fmtPct(r.irr) + ' p. a.' : '–', r.irrPeriod != null ? `${fmtPct(r.irrPeriod)} im Zeitraum` : null, signCls(r.irr)),
+    r.days >= 365
+      ? kpi('Interner Zinsfuß', r.irr != null ? fmtPct(r.irr) : '–', `p. a. · ${fmtPct(r.irrPeriod)} im Zeitraum`, signCls(r.irr))
+      : kpi('Interner Zinsfuß', fmtPct(r.irrPeriod), 'im Zeitraum (unter 1 Jahr nicht hochgerechnet)', signCls(r.irrPeriod)),
     kpi('Gewinn', money(r.gain, true), 'Kurse, Erträge, Kosten'),
     kpi('Wert am Ende', fmtEur(r.endValue), fmtDate(b))));
   if (r.missing.length) {
@@ -76,7 +78,7 @@ export function analysis(view) {
     h('p', {}, h('b', {}, 'Nach Steuern: '), 'Zieht die in den Abrechnungen ausgewiesenen Steuern ab (inkl. Vorabpauschale). Steuern auf noch nicht verkaufte Gewinne sind nicht berücksichtigt.')));
 
   // Verlauf
-  const ser = m.series(filter, a, b, mode);
+  const ser = m.series(filter, r.a, b, mode);
   const chartView = st.chart || 'value';
   out.push(h('h2', {}, 'Verlauf'), h('div', { class: 'card' },
     seg([['value', 'Wert'], ['twr', 'Rendite']], chartView, v => set({ chart: v })),
