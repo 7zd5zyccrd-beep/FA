@@ -222,12 +222,13 @@ export class Model {
     const dates = [...byDate.keys()].sort();
     const start = addDays(a, -1);
     const V0 = V(start);
-    let prev = V0, growth = 1, inflow = 0, outflow = 0;
+    let prev = V0, growth = 1, inflow = 0, outflow = 0, lastBase = 0;
     const cfs = V0 > EPS ? [{ t: 0, v: -V0 }] : [];
     for (const d of dates) {
       const cf = byDate.get(d);
       const Vd = V(d);
-      if (prev > EPS) growth *= (Vd - cf) / prev;
+      growth *= hpr(prev, Vd, cf, lastBase);
+      if (prev > EPS) lastBase = Vd - cf;   // Wert vor dem Fluss am Ende des Abschnitts
       prev = Vd;
       if (cf > 0) inflow += cf; else outflow -= cf;
       cfs.push({ t: daysBetween(start, d), v: -cf });
@@ -262,12 +263,13 @@ export class Model {
     samples.add(b);
     const events = [...new Set([...samples, ...byDate.keys()])].sort();
     const out = [];
-    let prev = V(start), growth = 1, invested = prev;
+    let prev = V(start), growth = 1, invested = prev, lastBase = 0;
     for (const d of events) {
       const cf = byDate.get(d) || 0;
       const Vd = V(d);
       if (d !== start) {
-        if (prev > EPS) growth *= (Vd - cf) / prev;
+        growth *= hpr(prev, Vd, cf, lastBase);
+        if (prev > EPS) lastBase = Vd - cf;   // Wert vor dem Fluss am Ende des Abschnitts
         invested += cf;
       }
       prev = Vd;
@@ -391,6 +393,14 @@ export class Model {
     }
     return res;
   }
+}
+
+// Teilrendite eines Abschnitts (Fluss am Tagesende). Ohne Bestand wird eine Auszahlung, z. B. eine
+// Ausschüttung nach dem vollständigen Verkauf, dem letzten Abschnitt mit Bestand zugerechnet.
+function hpr(prev, value, cf, lastBase) {
+  if (prev > EPS) return (value - cf) / prev;
+  if (cf < -EPS && lastBase > EPS && value < EPS) return 1 - cf / lastBase;
+  return 1;
 }
 
 // Interner Zinsfuß (p. a.) für Zahlungen [{t: Tage ab Start, v: Betrag}]; null, wenn nicht bestimmbar

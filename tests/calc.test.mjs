@@ -136,6 +136,19 @@ test('Umtausch: Gesamtrendite unverändert, Bestand wandert', () => {
   near(m.perf(k => k === 'D|N', '2024-07-01', '2024-12-31').twr, 60 / 55 - 1, 1e-9);
 });
 
+test('Ausschüttung nach vollständigem Verkauf zählt in der Rendite', () => {
+  const data = base();
+  data.prices.set('A', P([['2024-01-01', 100], ['2024-03-01', 110], ['2024-12-31', 120]]));
+  data.txs = [
+    { id: 1, type: 'buy', date: '2024-01-01', depotId: 'D', secId: 'A', shares: 10, price: 100 },
+    { id: 2, type: 'sell', date: '2024-03-01', depotId: 'D', secId: 'A', shares: 10, price: 110 },
+    { id: 3, type: 'div', date: '2024-04-01', depotId: 'D', secId: 'A', amount: 5 },
+  ];
+  const p = new Model(data).perf(() => true, '2024-01-01', '2024-12-31');
+  near(p.gain, 105, 1e-9);
+  near(p.twr, 1.1 * (1 + 5 / 1100) - 1, 1e-9);   // 10,5 %
+});
+
 test('Sparplan: fällige Termine', () => {
   const plan = { id: 'p', active: true, start: '2024-01-31', every: 1 };
   const due = duePlanDates(plan, [{ planId: 'p', planDate: '2024-01-31' }], '2024-04-30');
