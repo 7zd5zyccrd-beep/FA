@@ -105,6 +105,10 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 1. **kurs-test.html** – Kursquellen im Vergleich (v0.1.x). Ergebnis bisher: onvista liefert
    Schlusskurse vom iPhone (`eod_history`), Yahoo und OpenFIGI blockiert, Rest ohne Schlüssel
    ungetestet. Kursquelle der App vorerst **onvista**; zweite Quelle offen (siehe Erinnerung).
+   **Dividenden (v0.2.0, Okt. 2026):** Bereich „Dividenden“ im Kurs-Test. onvista hat keine bekannte
+   Dividenden-Schnittstelle – der Test zeigt Fundstellen in der Snapshot-Antwort; EODHD über `/api/div`.
+   Danach: „Offene Dividenden“ in der App (erwartete Zahlung aus Bestand am Ex-Tag × Betrag je
+   Aktie als vorausgefüllte Buchung; Steuern trägt Jean aus der Abrechnung ein) – freigegeben.
 2.–5. **App v1.0.0** (Okt. 2026): Grundgerüst, Bewertung, Performance, Darstellung umgesetzt,
    danach Prüfung durch UI-, UX- und Design-Fachleute, Entscheidung durch einen Vorgesetzten,
    Umsetzung in drei Etappen (v0.9.1–v0.9.3). **Jean beurteilt die fertige App noch.**

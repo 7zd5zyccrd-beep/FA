@@ -150,6 +150,18 @@ details[open] > summary::after { transform: rotate(90deg); }
 
   <div id="results"></div>
 
+  <h2 style="margin:22px 4px 8px">Dividenden</h2>
+  <form class="card" id="divForm" novalidate autocomplete="off">
+    <p class="hint" style="margin-top:0">Zahlungen je Aktie mit Ex-Tag und Zahltag aus den Quellen abrufen und mit den Abrechnungen vergleichen.</p>
+    <label for="divId">ISIN oder WKN</label>
+    <input id="divId" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="14" placeholder="z. B. DE0008404005" style="text-transform:uppercase">
+    <label for="divFrom">Ab Datum</label>
+    <input id="divFrom" type="date">
+    <p class="err" id="divErr" hidden></p>
+    <button type="submit" id="divGo">Dividenden abfragen</button>
+  </form>
+  <div id="divResults"></div>
+
   <details class="card" id="protoCard">
     <summary>Testprotokoll <span class="badge" id="protoCount" style="margin-left:8px">0</span></summary>
     <p class="hint">Jede Abfrage wird hier lokal auf diesem Gerät gesammelt. Als CSV exportieren, um die Quellen zu vergleichen.</p>
@@ -168,7 +180,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
 <script>
 'use strict';
-const VERSION = '0.1.5';
+const VERSION = '0.2.0';
 const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
 const TIMEOUT_MS = 15000;
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
@@ -554,6 +566,7 @@ const FIELDS = ['isin', 'date', 'ref', 'refCur', 'venue', 'symbol'];
 
 // ---------- Darstellung ----------
 const STATUS = {
+  divok: ['Daten gefunden', 'ok'], divinfo: ['Fundstellen', 'warn'],
   ok: ['Kurs gefunden', 'ok'], info: ['Zuordnung', 'ok'], nodata: ['Kein Kurs zum Datum', 'warn'],
   notfound: ['Nicht gefunden', 'warn'], blocked: ['Blockiert', 'bad'], timeout: ['Zeitüberschreitung', 'bad'],
   http: ['Fehler', 'bad'], parse: ['Fehler', 'bad'], error: ['Fehler', 'bad'], nokey: ['Schlüssel fehlt', ''], running: ['läuft …', ''],
@@ -802,6 +815,104 @@ function renderSettings() {
 }
 
 // ---------- Start ----------
+// ---------- Dividenden ----------
+// onvista: keine bekannte Dividenden-Schnittstelle – die Snapshot-Antwort wird nach Dividenden-Feldern durchsucht
+function findKeys(obj, re, path = '', out = []) {
+  if (!obj || typeof obj !== 'object' || out.length > 20) return out;
+  for (const [k, v] of Object.entries(obj)) {
+    const p = path ? path + '.' + k : k;
+    if (re.test(k)) out.push({ path: p, value: v });
+    else findKeys(v, re, p, out);
+  }
+  return out;
+}
+async function divOnvista(isin, from, ctx) {
+  const OV = 'https://api.onvista.de/api/v1';
+  const PATH = { STOCK: 'stocks', FUND: 'funds', ETF: 'etfs', BOND: 'bonds' };
+  const s = await ctx.json(`${OV}/instruments/search/facet?searchValue=${enc(isin)}`);
+  const items = [];
+  for (const f of s.facets || []) for (const r of f.results || []) items.push(r);
+  const inst = items.find(r => (r.isin || '').toUpperCase() === isin) || items[0];
+  if (!inst) throw new SourceError('notfound', 'ISIN nicht gefunden');
+  const path = PATH[inst.entityType] || String(inst.entityType || '').toLowerCase() + 's';
+  const snap = await ctx.json(`${OV}/${path}/ISIN:${enc(isin)}/snapshot`);
+  const hits = findKeys(snap, /divid|distribution|aussch|payout/i);
+  if (!hits.length) throw new SourceError('nodata', `In der onvista-Antwort (${inst.entityType}) gibt es keine Dividenden-Felder.`);
+  return { name: inst.name, hits };
+}
+// EODHD: dokumentierte Dividenden-Abfrage je Börsenkürzel
+const HOME_EXCHANGE = { US: 'US', DE: 'XETRA', GB: 'LSE', FR: 'PA', NL: 'AS', CH: 'SW', IE: 'XETRA', LU: 'XETRA', AT: 'VI', IT: 'MI', ES: 'MC' };
+async function divEodhd(isin, from, ctx) {
+  const k = enc(ctx.key);
+  const list = await ctx.json(`https://eodhd.com/api/search/${enc(isin)}?api_token=${k}&fmt=json&limit=15`);
+  if (!Array.isArray(list) || !list.length) throw new SourceError('notfound', 'ISIN nicht gefunden');
+  const pref = HOME_EXCHANGE[isin.slice(0, 2)];
+  const it = list.find(x => x.Exchange === pref) || list[0];
+  const sym = it.Code + '.' + it.Exchange;
+  const d = await ctx.json(`https://eodhd.com/api/div/${enc(sym)}?from=${from}&api_token=${k}&fmt=json`);
+  if (!Array.isArray(d)) throw new SourceError('parse', 'Unerwartete Antwort');
+  return { name: it.Name, sym, rows: d.map(x => ({ ex: x.date, pay: x.paymentDate, rec: x.recordDate, value: x.value, unadj: x.unadjustedValue, cur: x.currency, period: x.period })) };
+}
+function divTable(rows) {
+  if (!rows.length) return h('p', { class: 'msg' }, 'Keine Dividenden im Zeitraum.');
+  return h('div', { style: 'overflow-x:auto;margin-top:8px' }, h('table', { style: 'width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums' },
+    h('thead', {}, h('tr', {}, ['Ex-Tag', 'Zahltag', 'Je Aktie', ''].map(t => h('th', { style: 'text-align:left;color:var(--muted);font-weight:600;padding:4px 6px 4px 0' }, t)))),
+    h('tbody', {}, rows.slice().reverse().map(r => h('tr', { style: 'border-top:1px solid var(--line)' },
+      h('td', { style: 'padding:6px 6px 6px 0;white-space:nowrap' }, r.ex ? fmtDate(r.ex) : '–'),
+      h('td', { style: 'padding:6px 6px 6px 0;white-space:nowrap' }, r.pay ? fmtDate(r.pay) : '–'),
+      h('td', { style: 'padding:6px 6px 6px 0;white-space:nowrap;font-weight:600' }, r.value != null ? `${nf.format(r.value)} ${r.cur || ''}` : '–'),
+      h('td', { style: 'padding:6px 0;color:var(--muted);font-size:12px' }, r.unadj != null && Math.abs(r.unadj - r.value) > 1e-9 ? `vor Split ${nf.format(r.unadj)}` : (r.period || '')))))));
+}
+async function runDividends(ev) {
+  ev.preventDefault();
+  document.activeElement && document.activeElement.blur();
+  const err = $('#divErr');
+  let id = $('#divId').value.trim().toUpperCase().replace(/\s/g, '');
+  const from = $('#divFrom').value || '2015-01-01';
+  err.hidden = true;
+  if (!isWkn(id) && !isinValid(id)) { err.textContent = 'Bitte eine gültige ISIN oder WKN eingeben.'; err.hidden = false; return; }
+  const btn = $('#divGo');
+  btn.disabled = true; btn.textContent = 'Frage ab …';
+  try { store.set('kt.div', { id, from }); } catch { /* egal */ }
+  const out = $('#divResults');
+  out.replaceChildren();
+  if (isWkn(id)) {
+    try { id = (await resolveWkn(id)).isin; }
+    catch (e) { err.textContent = `WKN nicht übersetzbar (${e.message}). Bitte die ISIN eingeben.`; err.hidden = false; btn.disabled = false; btn.textContent = 'Dividenden abfragen'; return; }
+  }
+  const srcs = [
+    { id: 'onvista', name: 'onvista', run: divOnvista },
+    { id: 'eodhd', name: 'EODHD', run: divEodhd, needsKey: true },
+  ];
+  await Promise.all(srcs.map(async src => {
+    const card = h('section', { class: 'card' });
+    out.append(card);
+    card.replaceChildren(h('div', { class: 'res-head' }, h('h2', {}, src.name), badge('running')));
+    const ctx = makeCtx(src);
+    let body;
+    let status = 'divok';
+    try {
+      if (src.needsKey && !ctx.key) throw new SourceError('nokey', 'Kein Schlüssel hinterlegt – unten unter „Quellen und Schlüssel“ eintragen.');
+      const r = await src.run(id, from, ctx);
+      if (r.rows) {
+        body = [h('p', { class: 'msg' }, `${r.name} · ${r.sym} · ${r.rows.length} Zahlungen`), divTable(r.rows)];
+        if (!r.rows.length) status = 'nodata';
+      } else {
+        status = 'divinfo';
+        body = [h('p', { class: 'msg' }, `${r.name}: Fundstellen in der Antwort (zur Prüfung, noch nicht ausgewertet):`),
+          r.hits.map(x => h('details', { class: 'raw' }, h('summary', {}, x.path),
+            h('pre', {}, JSON.stringify(x.value, null, 1).slice(0, 4000))))];
+      }
+    } catch (e) {
+      status = e.status || 'error';
+      body = [h('p', { class: 'msg' }, e.message)];
+    }
+    card.replaceChildren(h('div', { class: 'res-head' }, h('h2', {}, src.name), badge(status)), ...[body].flat(3), rawBlock(ctx.raw) || '');
+  }));
+  out.prepend(h('p', { class: 'lead' }, `${id} · ab ${fmtDate(from)}`));
+  btn.disabled = false; btn.textContent = 'Dividenden abfragen';
+}
+
 function init() {
   $('#ver').textContent = 'v' + VERSION;
   $('#refCur').replaceChildren(...CURRENCIES.map(c => h('option', { value: c }, c)));
@@ -821,6 +932,13 @@ function init() {
   updateProtoCount();
 }
 init();
+{
+  const saved = store.get('kt.div', {});
+  $('#divId').value = saved.id || '';
+  const d = new Date(); d.setFullYear(d.getFullYear() - 3);
+  $('#divFrom').value = saved.from || d.toISOString().slice(0, 10);
+  $('#divForm').addEventListener('submit', runDividends);
+}
 </script>
 </body>
 </html>
