@@ -74,6 +74,23 @@ const KEEP = {
   in: ['shares', 'price'], out: ['shares', 'price'], div: ['amount', 'fees', 'kest', 'soli', 'kist', 'qst'], interest: ['amount', 'fees', 'kest', 'soli', 'kist', 'qst'],
   tax: ['kest', 'soli', 'kist'], split: ['ratio'], exchange: ['ratio'], spinoff: ['ratio', 'price'],
 };
+// Börsenplätze für die Buchung (nur zur Dokumentation); fehlende auf Zuruf ergänzen
+const VENUES = [
+  ['Deutsche Börsen', ['Xetra', 'Tradegate', 'gettex', 'Frankfurt', 'Berlin', 'Düsseldorf', 'Hamburg', 'Hannover', 'München', 'Stuttgart', 'Quotrix', 'LS Exchange']],
+  ['Fonds', ['Fondsgesellschaft']],
+  ['Ausland', ['NYSE', 'Nasdaq', 'London']],
+  ['Sonstige', ['außerbörslich']],
+];
+const ALL_VENUES = VENUES.flatMap(([, v]) => v);
+const OTHER = '__other';
+function venueSelect(value) {
+  const el = h('select', {},
+    h('option', { value: '' }, 'Keine Angabe'),
+    VENUES.map(([label, vs]) => h('optgroup', { label }, vs.map(v => h('option', { value: v }, v)))),
+    h('option', { value: OTHER }, 'Anderer …'));
+  el.value = !value ? '' : ALL_VENUES.includes(value) ? value : OTHER;
+  return el;
+}
 const WITH_CURRENCY = ['buy', 'sell', 'in', 'out', 'div', 'interest', 'spinoff'];
 
 export function txForm(view, id) {
@@ -131,7 +148,8 @@ export function txForm(view, id) {
     qst: numInput({ value: numIn(qstShown), placeholder: '0,00' }),
     ratio: numInput({ value: numIn(tx.ratio) }),
     target: select([['', 'Bitte wählen …'], ...state.securities.map(s => [s.id, s.name]), ['__new', '＋ Neues Wertpapier anlegen …']], tx.targetSecId || ''),
-    venue: h('input', { value: tx.venue || '', list: 'venue-list', autocorrect: 'off', placeholder: 'z. B. Xetra' }),
+    venue: venueSelect(tx.venue),
+    venueOther: h('input', { value: tx.venue && !ALL_VENUES.includes(tx.venue) ? tx.venue : '', autocorrect: 'off', placeholder: 'Name des Börsenplatzes' }),
     note: h('textarea', { rows: 2, 'aria-label': 'Notiz' }, tx.note || ''),
   };
   const fxBtn = h('button', { type: 'button', class: 'btn small sec', style: 'margin-top:6px' }, 'EZB-Kurs vom Tag einsetzen');
@@ -189,7 +207,8 @@ export function txForm(view, id) {
           field(unit, f.shares, isBond() ? 'z. B. 10000' : 'auch Bruchstücke'),
           field(isBond() ? 'Kurs in %' : (t === 'in' ? 'Einstandskurs' : 'Kurs'), f.price, t === 'in' ? 'für den Einstand' : null)),
         field('Währung des Kurses', f.currency), curNote, fxBox,
-        ['buy', 'sell'].includes(t) ? field('Börsenplatz', f.venue) : null));
+        ['buy', 'sell'].includes(t) ? field('Börsenplatz', f.venue) : null,
+        ['buy', 'sell'].includes(t) && f.venue.value === OTHER ? field('Anderer Börsenplatz', f.venueOther) : null));
       if (t === 'buy') parts.push(...section('Kosten', h('div', { class: 'grid2' }, field('Gebühren (€)', f.fees), isBond() ? field('Stückzinsen (€)', f.accrued) : h('span'))));
       if (t === 'sell') {
         parts.push(...section('Kosten', h('div', { class: 'grid2' }, field('Gebühren (€)', f.fees), isBond() ? field('Stückzinsen (€)', f.accrued) : h('span'))));
@@ -236,7 +255,7 @@ export function txForm(view, id) {
       o.qstCur = o.qst;
       o.qst = o.fx > 0 ? o.qst / normCur(o.currency).div / o.fx : NaN;
     }
-    o.venue = f.venue.value.trim();
+    o.venue = f.venue.value === OTHER ? f.venueOther.value.trim() : f.venue.value;
     o.targetSecId = ['exchange', 'spinoff'].includes(t) ? f.target.value : undefined;
     for (const k of NUM_FIELDS) if (k !== 'fx' && (!KEEP[t].includes(k) || o[k] == null)) delete o[k];
     if (o.fx == null) delete o.fx;
@@ -355,6 +374,7 @@ export function txForm(view, id) {
   f.sec.addEventListener('change', () => { if (f.sec.value === '__new') toNewSecurity('sec'); else { fillCurrency(true); layout(); } });
   f.target.addEventListener('change', () => { if (f.target.value === '__new') toNewSecurity('target'); });
   f.type.addEventListener('change', layout);
+  f.venue.addEventListener('change', () => { layout(); if (f.venue.value === OTHER) f.venueOther.focus(); });
   f.currency.addEventListener('change', () => { updateFx(); calc(); });
   form.addEventListener('input', () => { calc(); persistDraft(); });
   form.addEventListener('change', persistDraft);
@@ -410,7 +430,6 @@ export function txForm(view, id) {
       }
     } }, 'Buchung löschen'));
   }
-  form.append(h('datalist', { id: 'venue-list' }, ['Xetra', 'Tradegate', 'gettex', 'Frankfurt', 'Stuttgart', 'München', 'Berlin', 'Düsseldorf', 'Hamburg', 'Hannover', 'Quotrix', 'LS Exchange', 'Fondsgesellschaft', 'NYSE', 'Nasdaq', 'außerbörslich'].map(v => h('option', { value: v }))));
   view.replaceChildren(head(existing ? 'Buchung bearbeiten' : 'Neue Buchung', { back: fallback }), ...top, form);
   fillCurrency(false);
   layout();
