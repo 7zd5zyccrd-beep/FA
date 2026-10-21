@@ -3,7 +3,7 @@ import { state } from './db.js';
 import { Model, KINDS } from './calc.js';
 import { daysBetween, today } from './util.js';
 
-export const VERSION = '1.0.1';
+export const VERSION = '1.0.2';
 
 let cache = { v: -1, m: null };
 export function model() {

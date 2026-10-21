@@ -4,7 +4,7 @@ import { state, save, remove, setMeta, deletePricesOf, clearAll } from '../db.js
 import { KINDS, duePlanDates } from '../calc.js';
 import { model, params, sec, secName, depotName, kindName, go, goBack, rerender, VERSION } from '../ctx.js';
 import { lookup, defaultNotation } from '../prices.js';
-import { runPriceUpdate, exportBackup, importBackup, loadDemo } from '../actions.js';
+import { runPriceUpdate, exportBackup, importBackup, loadDemo, hardReload } from '../actions.js';
 
 export function more(view) {
   const due = state.plans.reduce((s, p) => s + duePlanDates(p, state.txs, today()).length, 0);
@@ -20,7 +20,7 @@ export function more(view) {
     list(
       row({ title: 'So rechnet die App', href: '#/hilfe' }),
       row({ title: 'Kurs-Test', sub: 'Kursquellen vergleichen', href: 'kurs-test.html' }),
-      row({ title: 'Neu laden', sub: 'Neueste Version holen', onclick: () => location.replace(location.pathname + '?neu=' + Date.now() + location.hash) })),
+      row({ title: 'Neu laden', sub: 'Neueste Version holen', onclick: () => hardReload() })),
     h('p', { class: 'tiny muted center' }, `Finanzübersicht v${VERSION} · Daten nur auf diesem Gerät`));
 }
 

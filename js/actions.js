@@ -60,3 +60,18 @@ export async function loadDemo() {
   toast('Beispieldaten geladen');
   go('#/');
 }
+
+// Neu laden an allen Zwischenspeichern vorbei: Safari hält Programmdateien sonst bis zu
+// 10 Minuten (Vorgabe von GitHub Pages). Jede geladene Datei wird frisch geholt, dann neu gestartet.
+const APP_FILES = ['index.html', 'css/app.css', 'manifest.webmanifest', 'js/app.js', 'js/ctx.js', 'js/util.js', 'js/ui.js', 'js/db.js',
+  'js/calc.js', 'js/prices.js', 'js/chart.js', 'js/actions.js', 'js/demo.js',
+  'js/views/overview.js', 'js/views/holdings.js', 'js/views/txs.js', 'js/views/analysis.js', 'js/views/more.js'];
+export async function hardReload() {
+  toast('Hole die neueste Version …', 8000);
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const loaded = performance.getEntriesByType('resource').map(e => e.name.split('?')[0])
+    .filter(u => u.startsWith(location.origin) && /\.(js|css|webmanifest)$/.test(u));
+  const urls = [...new Set([location.origin + location.pathname, ...APP_FILES.map(f => base + f), ...loaded])];
+  await Promise.all(urls.map(u => fetch(u, { cache: 'reload', credentials: 'omit' }).catch(() => null)));
+  location.replace(location.pathname + '?neu=' + Date.now() + location.hash);
+}
