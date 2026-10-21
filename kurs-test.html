@@ -166,7 +166,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
 <script>
 'use strict';
-const VERSION = '0.1.4';
+const VERSION = '0.1.5';
 const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
 const TIMEOUT_MS = 15000;
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
@@ -249,6 +249,21 @@ function isinValid(s) {
   return sum % 10 === 0;
 }
 function maskUrl(u) { return u.replace(/(api_token|apikey|token)=[^&]+/gi, '$1=***'); }
+// Handelsende je Börsenplatz (deutsche Zeit, sofern nicht anders angegeben); Reihenfolge = Suchreihenfolge
+const CLOSING = [
+  ['xetra', '17:30 Uhr'], ['tradegate', '22:00 Uhr'], ['gettex', '22:00 Uhr'], ['quotrix', '22:00 Uhr'],
+  ['ls exchange', '23:00 Uhr'], ['lang & schwarz', '23:00 Uhr'], ['frankfurt', '22:00 Uhr'], ['stuttgart', '22:00 Uhr'],
+  ['münchen', '22:00 Uhr'], ['düsseldorf', '22:00 Uhr'], ['berlin', '22:00 Uhr'], ['hamburg', '22:00 Uhr'], ['hannover', '22:00 Uhr'],
+  ['nasdaq', '16:00 Uhr New York (meist 22:00 Uhr dt. Zeit)'], ['nyse', '16:00 Uhr New York (meist 22:00 Uhr dt. Zeit)'],
+  ['london', '16:30 Uhr London (17:30 Uhr dt. Zeit)'], ['six', '17:30 Uhr'], ['euronext', '17:30 Uhr'], ['wien', '17:30 Uhr'],
+];
+function closingTime(label) {
+  const l = String(label || '').toLowerCase();
+  if (/fondsgesellschaft|\bkag\b/.test(l)) return 'Rücknahmepreis, einmal täglich';
+  const hit = CLOSING.find(([k]) => l.includes(k));
+  return hit ? 'Handelsende ' + hit[1] : '';
+}
+
 function venueMatch(label, venue) {
   return !!venue && String(label || '').toLowerCase().includes(venue.toLowerCase());
 }
@@ -563,8 +578,11 @@ function quoteRow(r, q) {
   if (sub) kids.push(h('div', { class: 'q-sub' }, sub));
   if (r.close != null) {
     const late = r.date < q.date;
+    const closing = closingTime(r.label);
     kids.push(h('div', { class: 'q-sub' + (late ? ' warn' : '') },
-      `Kurs vom ${fmtDate(r.date)}` + (late ? ' – letzter Handelstag vor dem Wunschdatum' : '')));
+      (late && q.date === todayIso() ? `Für heute gibt es noch keinen Schlusskurs – angezeigt wird der vom ${fmtDate(r.date)}`
+        : `Kurs vom ${fmtDate(r.date)}` + (late ? ' – letzter Handelstag vor dem Wunschdatum' : ''))));
+    if (closing) kids.push(h('div', { class: 'q-sub' }, closing));
     if (r.eur != null) kids.push(h('div', { class: 'q-sub' }, `≈ ${nf4.format(r.eur)} EUR (EZB ${nf.format(r.fxRate)} vom ${fmtDate(r.fxDate)})`));
     if (r.dev != null) kids.push(h('div', { class: 'q-dev ' + devClass(r.dev) },
       `Abweichung ${nfPct.format(r.dev * 100)} %` + (r.devViaFx ? ' (über EZB-Kurs umgerechnet)' : '')));
@@ -619,7 +637,8 @@ async function renderFx(card, q, curs) {
       const late = fx.date < q.date;
       kids.push(h('div', { class: 'q' },
         h('div', { class: 'q-top' }, h('span', { class: 'q-label' }, `1 EUR = ${c}`), h('span', { class: 'q-price' }, nf.format(fx.rate))),
-        h('div', { class: 'q-sub' + (late ? ' warn' : '') }, `vom ${fmtDate(fx.date)}` + (late ? ' – letzter Veröffentlichungstag davor' : ''))));
+        h('div', { class: 'q-sub' + (late ? ' warn' : '') }, late && q.date === todayIso() ? `Für heute noch kein EZB-Kurs (erscheint gegen 16 Uhr) – angezeigt wird der vom ${fmtDate(fx.date)}`
+          : `vom ${fmtDate(fx.date)}` + (late ? ' – letzter Veröffentlichungstag davor' : ''))));
     } catch (e) {
       kids.push(h('div', { class: 'q' }, h('div', { class: 'q-top' }, h('span', { class: 'q-label' }, c)), h('div', { class: 'q-sub warn' }, e.message)));
     }
