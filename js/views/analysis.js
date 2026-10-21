@@ -1,5 +1,5 @@
 import { h, fmtEur, fmtPct, fmtDate, today } from '../util.js';
-import { head, seg, chips, kpi, money, pct, signCls, field, select } from '../ui.js';
+import { head, seg, chips, kpi, money, pct, signCls, field, select, list, row } from '../ui.js';
 import { lineChart, yearBars } from '../chart.js';
 import { state, setMeta } from '../db.js';
 import { model, setting, secName, depotName, periodRange, PERIODS, rerender } from '../ctx.js';
@@ -58,7 +58,7 @@ export function analysis(view) {
     kpi('Zeitgewichtete Rendite', fmtPct(r.twr), r.twrPa != null ? `${fmtPct(r.twrPa)} p. a.` : 'im Zeitraum', signCls(r.twr)),
     r.days >= 365
       ? kpi('Interner Zinsfuß', r.irr != null ? fmtPct(r.irr) : '–', `p. a. · ${fmtPct(r.irrPeriod)} im Zeitraum`, signCls(r.irr))
-      : kpi('Interner Zinsfuß', fmtPct(r.irrPeriod), 'im Zeitraum (unter 1 Jahr nicht hochgerechnet)', signCls(r.irrPeriod)),
+      : kpi('Interner Zinsfuß', fmtPct(r.irrPeriod), 'im Zeitraum, nicht hochgerechnet', signCls(r.irrPeriod)),
     kpi('Gewinn', money(r.gain, true), 'Kurse, Erträge, Kosten'),
     kpi('Wert am Ende', fmtEur(r.endValue), fmtDate(b))));
   if (r.missing.length) {
@@ -95,14 +95,20 @@ export function analysis(view) {
   if (years.length) {
     out.push(h('h2', {}, 'Jahresvergleich'), h('div', { class: 'card' },
       yearBars(years.map(y => ({ label: String(y.year), value: y.twr }))),
-      h('div', { class: 'scroll-x mt' }, h('table', { class: 'table' },
+      h('div', { class: 'scroll-x fade mt' }, h('table', { class: 'table' },
         h('thead', {}, h('tr', {}, h('th', {}, 'Jahr'), h('th', {}, 'Zeitgew.'), h('th', {}, 'Zinsfuß'), h('th', {}, 'Gewinn'))),
-        h('tbody', {}, years.slice().reverse().map(y => h('tr', {},
-          h('td', {}, y.year + (y.b < `${y.year}-12-31` ? ' *' : '')),
-          h('td', { class: signCls(y.twr) }, fmtPct(y.twr)),
-          h('td', { class: signCls(y.irr) }, fmtPct(y.irr)),
-          h('td', { class: signCls(y.gain) }, fmtEur(y.gain))))))),
-      years.some(y => y.b < `${y.year}-12-31` || y.a > `${y.year}-01-01`) ? h('p', { class: 'tiny muted' }, '* angefangenes Jahr. Zinsfuß jeweils p. a.') : h('p', { class: 'tiny muted' }, 'Zinsfuß jeweils p. a.')));
+        h('tbody', {}, years.slice().reverse().map(y => {
+          const partial = y.days < 365;
+          const irr = partial ? y.irrPeriod : y.irr;
+          return h('tr', {},
+            h('td', {}, y.year + (partial ? ' *' : '')),
+            h('td', { class: signCls(y.twr) }, fmtPct(y.twr)),
+            h('td', { class: signCls(irr) }, fmtPct(irr)),
+            h('td', { class: signCls(y.gain) }, (y.gain > 0 ? '+' : '') + fmtEur(y.gain)));
+        })))),
+      h('p', { class: 'tiny muted' }, years.some(y => y.days < 365)
+        ? '* angefangenes Jahr bzw. Beginn im Jahr: Zinsfuß im Zeitraum. Sonst p. a.'
+        : 'Zinsfuß jeweils p. a.')));
   }
 
   // Einzelne Positionen im Zeitraum
@@ -111,13 +117,11 @@ export function analysis(view) {
     const rows = secIds.map(id => ({ id, r: m.perf(k => filter(k) && k.endsWith('|' + id), a, b, mode) }))
       .filter(x => x.r.twr != null).sort((x, y) => y.r.gain - x.r.gain);
     if (rows.length > 1) {
-      out.push(h('h2', {}, 'Nach Wertpapier'), h('div', { class: 'card' }, h('div', { class: 'scroll-x' }, h('table', { class: 'table' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'Wertpapier'), h('th', {}, 'Zeitgew.'), h('th', {}, 'Gewinn'))),
-        h('tbody', {}, rows.map(x => h('tr', { onclick: () => set({ scope: 'sec', sec: x.id }), style: 'cursor:pointer' },
-          h('td', { style: 'max-width:170px;overflow:hidden;text-overflow:ellipsis' }, secName(x.id)),
-          h('td', { class: signCls(x.r.twr) }, fmtPct(x.r.twr)),
-          h('td', { class: signCls(x.r.gain) }, fmtEur(x.r.gain)))))))),
-        h('p', { class: 'tiny muted', style: 'margin:0 4px' }, 'Zeile antippen, um das Wertpapier einzeln auszuwerten.'));
+      out.push(h('h2', {}, 'Nach Wertpapier'), list(...rows.map(x => row({
+        title: secName(x.id), sub: `Gewinn ${(x.r.gain > 0 ? '+' : '') + fmtEur(x.r.gain)}`,
+        right: pct(x.r.twr), rightSub: 'zeitgewichtet',
+        onclick: () => set({ scope: 'sec', sec: x.id }),
+      }))), h('p', { class: 'tiny muted', style: 'margin:0 4px' }, 'Antippen, um das Wertpapier einzeln auszuwerten.'));
     }
   }
   view.replaceChildren(...out);

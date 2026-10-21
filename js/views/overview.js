@@ -1,5 +1,5 @@
 import { h, fmtEur, fmtPct, fmtDate, addDays, today, daysBetween } from '../util.js';
-import { head, iconBtn, kpi, money, chips, list, row, signCls, toast } from '../ui.js';
+import { head, iconBtn, kpi, money, seg, list, row, signCls } from '../ui.js';
 import { lineChart, allocation } from '../chart.js';
 import { state } from '../db.js';
 import { duePlanDates } from '../calc.js';
@@ -16,15 +16,14 @@ export function overview(view) {
   const out = [head('Übersicht', { actions: [iconBtn('refresh', 'Kurse aktualisieren', () => runPriceUpdate())] })];
 
   if (!state.txs.length) {
-    out.push(h('div', { class: 'card' },
-      h('h3', {}, 'Willkommen'),
-      h('p', { class: 'muted' }, 'Hier entsteht deine Gesamtübersicht über Depots und Wertpapiere – mit tagesgenauer Rendite. Die Daten bleiben nur auf diesem Gerät.'),
-      h('p', { class: 'muted' }, 'So geht es los: Depot anlegen, dann die erste Buchung erfassen. Das Wertpapier findest du dabei über ISIN oder WKN.'),
-      h('a', { class: 'btn block', href: state.depots.length ? '#/buchung/neu' : '#/depot/neu?erst=1' }, state.depots.length ? 'Erste Buchung erfassen' : 'Depot anlegen'),
-      h('div', { class: 'btns' },
-        h('button', { class: 'btn sec', type: 'button', onclick: () => loadDemo() }, 'Beispieldaten'),
-        h('a', { class: 'btn sec', href: '#/sicherung' }, 'Sicherung laden'))));
-    view.replaceChildren(...out);
+    view.replaceChildren(h('div', { class: 'card welcome' },
+      h('img', { src: 'icons/icon-192.png', alt: '' }),
+      h('h1', {}, 'Willkommen'),
+      h('p', {}, 'Deine Depots und Wertpapiere mit tagesgenauer Rendite. Die Daten bleiben nur auf diesem Gerät.'),
+      h('a', { class: 'btn', href: state.depots.length ? '#/buchung/neu' : '#/depot/neu?erst=1' }, state.depots.length ? 'Erste Buchung erfassen' : 'Depot anlegen'),
+      h('div', { class: 'links' },
+        h('button', { class: 'btn small text', type: 'button', onclick: () => loadDemo() }, 'Beispieldaten ansehen'),
+        h('a', { class: 'btn small text', href: '#/sicherung' }, 'Sicherung einlesen'))));
     return;
   }
 
@@ -69,7 +68,7 @@ export function overview(view) {
     const { a, b } = periodRange(key);
     const ser = m.series(() => true, a, b, mode);
     chartBox.replaceChildren(
-      chips([['1y', '1 Jahr'], ['3y', '3 Jahre'], ['5y', '5 Jahre'], ['all', 'Seit Beginn']], key, drawChart),
+      seg([['1y', '1 J'], ['3y', '3 J'], ['5y', '5 J'], ['all', 'Max']], key, drawChart),
       lineChart(ser.map(p => p.d), [
         { label: 'Depotwert', values: ser.map(p => p.v), color: 'var(--chart-1)' },
         { label: 'Eingesetztes Kapital', values: ser.map(p => p.invested), color: 'var(--chart-2)', dash: '4 3' },
@@ -101,7 +100,7 @@ export function overview(view) {
     const drawAlloc = k => {
       lsSet('ov.alloc', k);
       const src = k === 'cur' ? byCur : byKind;
-      allocBox.replaceChildren(chips([['kind', 'Nach Art'], ['cur', 'Nach Währung']], k, drawAlloc),
+      allocBox.replaceChildren(seg([['kind', 'Nach Art'], ['cur', 'Nach Währung']], k, drawAlloc),
         allocation([...src].map(([label, value]) => ({ label, value })), fmtEur));
     };
     drawAlloc(lsGet('ov.alloc', 'kind'));

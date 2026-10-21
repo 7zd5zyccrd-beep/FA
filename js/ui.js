@@ -58,16 +58,17 @@ export function kpi(label, val, note, cls) {
 
 // Segment-Umschalter
 export function seg(options, value, onchange) {
-  const el = h('div', { class: 'seg', role: 'tablist' });
+  const el = h('div', { class: 'seg', role: 'radiogroup' });
   for (const [v, label] of options) {
-    el.append(h('button', { type: 'button', class: v === value ? 'on' : '', role: 'tab', 'aria-selected': v === value ? 'true' : 'false', onclick: () => onchange(v) }, label));
+    el.append(h('button', { type: 'button', class: v === value ? 'on' : '', role: 'radio', 'aria-checked': v === value ? 'true' : 'false', onclick: () => onchange(v) }, label));
   }
   return el;
 }
 export function chips(options, value, onchange) {
   const el = h('div', { class: 'chips' });
-  for (const [v, label] of options) el.append(h('button', { type: 'button', class: 'chip' + (v === value ? ' on' : ''), onclick: () => onchange(v) }, label));
-  requestAnimationFrame(() => { const on = el.querySelector('.on'); if (on && on.scrollIntoView) on.scrollIntoView({ inline: 'center', block: 'nearest' }); });
+  for (const [v, label] of options) el.append(h('button', { type: 'button', class: 'chip' + (v === value ? ' on' : ''), 'aria-pressed': v === value ? 'true' : 'false', onclick: () => onchange(v) }, label));
+  // Nur waagrecht im Behälter scrollen – die Seite selbst darf sich nicht bewegen
+  requestAnimationFrame(() => { const on = el.querySelector('.on'); if (on) el.scrollLeft = Math.max(0, on.offsetLeft - el.offsetLeft - (el.clientWidth - on.offsetWidth) / 2); });
   return el;
 }
 
@@ -111,7 +112,7 @@ export function sheet(build) {
     box.append(...[].concat(build(close)).filter(Boolean));
     document.body.append(bg);
     document.addEventListener('keydown', onKey);
-    const first = box.querySelector('input, select');
+    const first = box.querySelector('[data-autofocus]');
     if (first) setTimeout(() => first.focus(), 250);
   });
 }

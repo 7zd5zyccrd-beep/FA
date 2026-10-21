@@ -2,7 +2,7 @@ import { h, fmtEur, fmtPct, fmtShares, fmtDate, fmtNum, today, addDays, parseNum
 import { head, iconBtn, list, row, chips, seg, kpi, money, pct, signCls, sheet, field, numInput, confirmSheet, toast } from '../ui.js';
 import { lineChart } from '../chart.js';
 import { state, putPrices, deletePrice } from '../db.js';
-import { TX_TYPES, txTotal, normCur } from '../calc.js';
+import { TX_TYPES, TX_SHORT, txTotal, normCur } from '../calc.js';
 import { model, params, setting, sec, depotName, kindName, periodRange, go, rerender } from '../ctx.js';
 
 export function holdings(view) {
@@ -96,7 +96,7 @@ export function securityDetail(view, id) {
           kpi('Zeitgewichtet', fmtPct(pa ? r.twrPa : r.twr), pa ? 'p. a.' : 'seit ' + fmtDate(r.a), signCls(r.twr)),
           kpi('Zinsfuß', fmtPct(pa ? r.irr : r.irrPeriod), pa ? 'p. a.' : 'im Zeitraum', signCls(r.irr)),
           kpi('Gewinn', money(r.gain, true), mode === 'post' ? 'nach Steuern' : 'vor Steuern')),
-      h('a', { class: 'small', href: '#/auswertung', onclick: () => { try { const st = JSON.parse(localStorage.getItem('ana.state') || '{}'); localStorage.setItem('ana.state', JSON.stringify({ ...st, scope: 'sec', sec: id })); } catch { /* egal */ } } }, 'Weitere Zeiträume in der Auswertung ›'));
+      h('a', { class: 'morelink', href: '#/auswertung', onclick: () => { try { const st = JSON.parse(localStorage.getItem('ana.state') || '{}'); localStorage.setItem('ana.state', JSON.stringify({ ...st, scope: 'sec', sec: id })); } catch { /* egal */ } } }, 'Weitere Zeiträume in der Auswertung ›'));
   };
   drawPerf('all');
   out.push(h('h2', {}, 'Rendite'), h('div', { class: 'card' }, perfBox));
@@ -125,7 +125,7 @@ export function securityDetail(view, id) {
 
   // Buchungen
   const txs = m.txs.filter(x => x.secId === id || x.targetSecId === id).reverse();
-  out.push(h('h2', {}, 'Buchungen'), txs.length ? list(...txs.map(x => txRow(x, true))) : h('div', { class: 'list' }, h('div', { class: 'empty' }, 'Keine Buchungen.')));
+  out.push(h('h2', {}, 'Buchungen'), txs.length ? list(...txs.map(x => txRow(x, id))) : h('div', { class: 'list' }, h('div', { class: 'empty' }, 'Keine Buchungen.')));
   out.push(h('a', { class: 'btn block sec', href: `#/buchung/neu?wp=${id}` }, 'Buchung hinzufügen'));
 
   // Kurse von Hand
@@ -138,26 +138,29 @@ export function securityDetail(view, id) {
   view.replaceChildren(...out);
 }
 
+// Buchung als Listenzeile. Farbe nur für Erträge; Käufe und Verkäufe sind Geldflüsse, keine Gewinne.
 export function txRow(x, inSecurity) {
   const s = sec(x.secId) || {};
   const total = txTotal(x, s);
   const sign = ['buy', 'tax'].includes(x.type) ? -1 : 1;
-  let sub = TX_TYPES[x.type];
-  if (['buy', 'sell', 'in', 'out'].includes(x.type)) sub += ` · ${fmtShares(x.shares)} à ${fmtNum(x.price, 2, 4)} ${s.kind === 'bond' ? '%' : x.currency || s.currency || ''}`;
-  if (x.type === 'split') sub += ` · 1 : ${fmtNum(x.ratio, 0, 6)}`;
-  if (['exchange', 'spinoff'].includes(x.type)) sub += ` → ${(sec(x.targetSecId) || {}).name || '?'}`;
-  if (inSecurity && x.targetSecId === s.id) sub = TX_TYPES[x.type] + ` ← ${s.name || '?'}`;
+  let what = TX_SHORT[x.type];
+  if (['buy', 'sell', 'in', 'out'].includes(x.type)) what += ` · ${fmtShares(x.shares)} à ${fmtNum(x.price, 2, 4)}${s.kind === 'bond' ? ' %' : ''}`;
+  if (x.type === 'split') what += ` 1 : ${fmtNum(x.ratio, 0, 6)}`;
+  if (['exchange', 'spinoff'].includes(x.type)) what += ` → ${(sec(x.targetSecId) || {}).name || '?'}`;
+  if (inSecurity && x.targetSecId && x.targetSecId !== x.secId && x.secId !== inSecurity) what = `${TX_SHORT[x.type]} ← ${s.name || '?'}`;
+  const depotInfo = state.depots.length > 1 ? ' · ' + depotName(x.depotId) : '';
+  const income = ['div', 'interest'].includes(x.type);
   return row({
-    title: inSecurity ? sub : s.name || '?', sub: inSecurity ? fmtDate(x.date, true) + (x.note ? ' · ' + x.note : '') : `${fmtDate(x.date)} · ${sub}`,
-    right: total != null ? money(sign * total, true) : null,
-    rightSub: state.depots.length > 1 ? depotName(x.depotId) : null,
+    title: inSecurity ? what : s.name || '?',
+    sub: inSecurity ? fmtDate(x.date, true) + depotInfo + (x.note ? ' · ' + x.note : '') : `${fmtDate(x.date)} · ${what}${depotInfo}`,
+    right: total != null ? h('span', { class: income ? 'pos' : '' }, (sign * total > 0 ? '+' : '') + fmtEur(sign * total)) : null,
     href: `#/buchung/${x.id}`,
   });
 }
 
 async function manualPrice(s, existing) {
   const d = h('input', { type: 'date', value: existing ? existing.d : today(), max: today() });
-  const c = numInput({ value: existing ? numIn(existing.c) : '', placeholder: '0,00' });
+  const c = numInput({ value: existing ? numIn(existing.c) : '', placeholder: '0,00', 'data-autofocus': true });
   const res = await sheet(close => [
     h('h3', {}, existing ? 'Kurs von Hand ändern' : 'Kurs von Hand eintragen'),
     h('p', {}, `Schlusskurs in ${s.kind === 'bond' ? '% vom Nennwert' : s.currency}. Er ersetzt einen abgerufenen Kurs vom selben Tag und wird als „von Hand“ markiert.`),

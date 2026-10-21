@@ -263,6 +263,7 @@ export function pricesView(view) {
 }
 
 // ---------- Sicherung ----------
+const ago = n => n <= 0 ? 'heute' : n === 1 ? 'gestern' : `vor ${n} Tagen`;
 export function backup(view) {
   const lastB = state.meta.lastBackup;
   const fileIn = h('input', { type: 'file', accept: '.json,application/json', style: 'display:none', onchange: async e => {
@@ -275,7 +276,7 @@ export function backup(view) {
   view.replaceChildren(
     head('Sicherung', { back: '#/mehr' }),
     h('div', { class: 'card' },
-      h('p', { style: 'margin-top:0' }, lastB ? `Letzte Sicherung: ${fmtDate(lastB.slice(0, 10))} (vor ${daysBetween(lastB.slice(0, 10), today())} Tagen)` : 'Noch keine Sicherung erstellt.'),
+      h('p', { style: 'margin-top:0' }, lastB ? `Letzte Sicherung: ${fmtDate(lastB.slice(0, 10))} (${ago(daysBetween(lastB.slice(0, 10), today()))})` : 'Noch keine Sicherung erstellt.'),
       h('p', { class: 'small muted' }, (state.meta.changes || 0) ? `${state.meta.changes} Änderungen seit der letzten Sicherung.` : 'Keine Änderungen seit der letzten Sicherung.'),
       h('p', { class: 'small muted' }, 'Die Sicherung ist eine Datei mit allen Depots, Buchungen und Kursen. Am iPhone über „In Dateien sichern“ z. B. in iCloud Drive ablegen.'),
       h('button', { class: 'btn block', type: 'button', onclick: () => exportBackup() }, 'Sicherung erstellen'),
