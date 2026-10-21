@@ -100,18 +100,47 @@ Nutzer: Jean. Kommunikation auf Deutsch.
 
 ---
 
-## Etappen (vorgeschlagen)
+## Etappen
 
-1. **kurs-test.html** – ISIN und Datum eingeben, Kurs aus Kandidatenquellen abrufen,
-   mit Abrechnungen vergleichen. Danach Entscheidung über die Kursquelle.
-   *Stand v0.1.5:* Quellen onvista, Yahoo, EODHD, Twelve Data, Alpha Vantage,
-   OpenFIGI (nur Zuordnung), EZB-Devisenkurse; Testprotokoll als CSV;
-   Eingabe per ISIN oder WKN (WKN wird über onvista in die ISIN übersetzt).
-2. **Grundgerüst** – Depots, Wertpapiere, Transaktionen, Sicherung/Wiederherstellung.
-3. **Bewertung** – Bestände zu jedem Datum (inkl. Kapitalmaßnahmen), Kursabruf und
-   Kursspeicher, Devisenkurse.
-4. **Performance** – IZF und TWR für frei wählbare Zeiträume, vor/nach Steuern.
-5. **Darstellung** – Verlaufsdiagramme, Jahresvergleich.
+1. **kurs-test.html** – Kursquellen im Vergleich (v0.1.x). Ergebnis bisher: onvista liefert
+   Schlusskurse vom iPhone (`eod_history`), Yahoo und OpenFIGI blockiert, Rest ohne Schlüssel
+   ungetestet. Kursquelle der App vorerst **onvista**; zweite Quelle offen (siehe Erinnerung).
+2.–5. **App v1.0.0** (Okt. 2026): Grundgerüst, Bewertung, Performance, Darstellung umgesetzt,
+   danach Prüfung durch UI-, UX- und Design-Fachleute, Entscheidung durch einen Vorgesetzten,
+   Umsetzung in drei Etappen (v0.9.1–v0.9.3). **Jean beurteilt die fertige App noch.**
+
+### Aufbau des Codes
+- `index.html`, `css/app.css`, `js/app.js` (Navigation), `js/ctx.js` (gemeinsamer Zugriff, Version)
+- `js/calc.js` Rechenkern (Bestände, Bewertung, Flüsse, TWR, IZF) – ohne DOM, in Node testbar
+- `js/db.js` IndexedDB und Sicherung, `js/prices.js` onvista/EZB, `js/demo.js` Beispieldaten
+- `js/views/*.js` Seiten, `js/ui.js` Bausteine, `js/chart.js` SVG-Diagramme
+- Prüffälle: `node tests/calc.test.mjs` (muss vor jeder Veröffentlichung grün sein)
+
+### Festlegungen aus der Umsetzung (von Jean noch zu bestätigen)
+- **Zu- und Abflüsse:** Sicht des Depots ohne Verrechnungskonto. Kauf = Einzahlung (inkl.
+  Gebühren, Stückzinsen), Verkauf/Dividende/Zinsen = Auszahlung, Ein-/Auslieferung zum Marktwert.
+- **Zeitgewichtet:** Zuflüsse zählen zum Tagesanfang, Abflüsse zum Tagesende. Unter einem Jahr
+  keine Hochrechnung (TWR und IZF „im Zeitraum“), ab einem Jahr zusätzlich p. a.
+- **Beginn:** Ohne Bestand am Vortag beginnt ein Zeitraum mit dem ersten Kauf.
+- **Nach Steuern:** nur die in Abrechnungen ausgewiesenen Steuern (inkl. Vorabpauschale,
+  Erstattungen); keine latente Steuer auf unrealisierte Gewinne.
+- **Bewertung:** je Wertpapier ein fester Börsenplatz; Buchungen dürfen in anderer Währung sein.
+  Fremdwährung über EZB-Referenzkurse, Anleihen in % vom Nennwert.
+- **Stückzinsen** sind Zinsertrag (gezahlte negativ), nicht Kursgewinn. Einstand nach
+  Durchschnittskosten.
+- **Kapitalmaßnahmen:** Split (je Depot zu buchen), Umtausch, Abspaltung (Marktwert wandert).
+- Umgesetzt aus den Vorschlägen: Sparplan-Vorlage mit offenen Ausführungen, Kursspeicher mit
+  Quelle/Abrufzeit, Kurse von Hand (markiert), Plausibilitätshinweise, EZB-Devisenkurse.
+
+### Zurückgestellt (aus der Fachprüfung)
+- Beim Wertpapier Vorjahr/freier Zeitraum/vor-nach-Steuern direkt (bisher über Auswertung)
+- „Sichern & weitere Buchung“ für das Nacherfassen vieler Abrechnungen
+- Sicherungserinnerung vorübergehend ausblenden
+- VoiceOver-Feinheiten, kompakte Tableiste im Querformat
+- Gestaltung: Banner und Kopfblock der Übersicht, Kennzahlkarten, Überschriften,
+  Achsenmarken nach Jahren/Monaten, App-Symbol
+- Abgerufene Kurse, die vor dem Erfassen eines späteren Splits gespeichert wurden, gelten als
+  splitbereinigt – Prüfung gegen die Abrufzeit fehlt noch (Plausibilitätsprüfung meldet Sprünge)
 
 ---
 
