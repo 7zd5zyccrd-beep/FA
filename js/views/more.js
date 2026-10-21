@@ -180,13 +180,15 @@ export function plans(view) {
   due.sort((a, b) => a.d < b.d ? -1 : 1);
   if (due.length) {
     out.push(h('h2', {}, 'Offene Ausführungen'), h('p', { class: 'small muted', style: 'margin:0 4px 8px' }, 'Antippen und Kurs, Stückzahl und Gebühren aus der Abrechnung eintragen.'));
-    out.push(list(...due.slice(0, 60).map(({ p, d }) => h('div', { class: 'row' },
-      h('a', { class: 'main', href: `#/buchung/neu?typ=buy&plan=${p.id}&datum=${d}`, style: 'color:inherit' },
-        h('div', { class: 'title' }, secName(p.secId)), h('div', { class: 'sub' }, `${fmtDate(d, true)} · ${fmtEur(p.amount)}`)),
-      h('button', { class: 'btn small sec', type: 'button', onclick: async () => {
-        await save('plans', { ...p, skipped: [...(p.skipped || []), d] }); toast('Ausführung übersprungen'); rerender();
-      } }, 'Entfällt'),
-      h('a', { class: 'btn small', href: `#/buchung/neu?typ=buy&plan=${p.id}&datum=${d}` }, 'Erfassen')))));
+    out.push(list(...due.slice(0, 60).map(({ p, d }) => h('div', { class: 'row', style: 'flex-wrap:wrap' },
+      h('a', { class: 'main', href: `#/buchung/neu?typ=buy&plan=${p.id}&datum=${d}`, style: 'color:inherit;min-width:100%' },
+        h('div', { class: 'title' }, secName(p.secId)), h('div', { class: 'sub' }, `${fmtDate(d, true)} · ${fmtEur(p.amount)} · ${depotName(p.depotId)}`)),
+      h('div', { class: 'rowbtns' },
+        h('a', { class: 'btn small', href: `#/buchung/neu?typ=buy&plan=${p.id}&datum=${d}` }, 'Erfassen'),
+        h('button', { class: 'btn small text', type: 'button', onclick: async () => {
+          if (!await confirmSheet('Ausführung überspringen?', `Die Ausführung vom ${fmtDate(d)} wird als „entfallen“ markiert und nicht mehr angezeigt.`, 'Überspringen')) return;
+          await save('plans', { ...p, skipped: [...(p.skipped || []), d] }); toast('Ausführung übersprungen'); rerender();
+        } }, 'Entfällt'))))));
     if (due.length > 60) out.push(h('p', { class: 'small muted center' }, `… und ${due.length - 60} weitere`));
   }
   out.push(h('h2', {}, 'Vorlagen'));

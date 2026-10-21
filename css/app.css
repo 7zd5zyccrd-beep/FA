@@ -108,6 +108,8 @@ button.row:active, a.row:active { background: var(--accent-soft); }
 .btn.block { width: 100%; }
 .btn.sec { background: var(--accent-soft); color: var(--accent); }
 .btn.danger { background: var(--bad-bg); color: var(--neg); }
+.btn.text { background: none; color: var(--muted); font-weight: 500; }
+.rowbtns { display: flex; gap: 8px; width: 100%; margin-top: 8px; }
 .btn.small { min-height: 38px; font-size: 15px; padding: 0 14px; border-radius: 10px; }
 .btn:disabled { opacity: .5; }
 .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
