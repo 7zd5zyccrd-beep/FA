@@ -152,7 +152,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
   <h2 style="margin:22px 4px 8px">Dividenden</h2>
   <form class="card" id="divForm" novalidate autocomplete="off">
-    <p class="hint" style="margin-top:0">Zahlungen je Aktie mit Ex-Tag und Zahltag aus den Quellen abrufen und mit den Abrechnungen vergleichen.</p>
+    <p class="hint" style="margin-top:0">Zahlungen je Aktie mit Ex-Tag und Zahltag sowie Splits aus den Quellen abrufen und mit den Abrechnungen vergleichen.</p>
     <label for="divId">ISIN oder WKN</label>
     <input id="divId" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="14" placeholder="z. B. DE0008404005" style="text-transform:uppercase">
     <label for="divFrom">Ab Datum</label>
@@ -180,7 +180,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
 <script>
 'use strict';
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
 const TIMEOUT_MS = 15000;
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
@@ -851,7 +851,13 @@ async function divEodhd(isin, from, ctx) {
   const sym = it.Code + '.' + it.Exchange;
   const d = await ctx.json(`https://eodhd.com/api/div/${enc(sym)}?from=${from}&api_token=${k}&fmt=json`);
   if (!Array.isArray(d)) throw new SourceError('parse', 'Unerwartete Antwort');
-  return { name: it.Name, sym, rows: d.map(x => ({ ex: x.date, pay: x.paymentDate, rec: x.recordDate, value: x.value, unadj: x.unadjustedValue, cur: x.currency, period: x.period })) };
+  // Splits über dieselbe Quelle (ein weiterer Abruf)
+  let splits = null;
+  try {
+    const sp = await ctx.json(`https://eodhd.com/api/splits/${enc(sym)}?from=${from}&api_token=${k}&fmt=json`);
+    if (Array.isArray(sp)) splits = sp.map(x => { const [a, b] = String(x.split || '').split('/').map(Number); return { d: x.date, a, b }; });
+  } catch (e) { splits = { error: e.message }; }
+  return { name: it.Name, sym, splits, rows: d.map(x => ({ ex: x.date, pay: x.paymentDate, rec: x.recordDate, value: x.value, unadj: x.unadjustedValue, cur: x.currency, period: x.period })) };
 }
 function divTable(rows) {
   if (!rows.length) return h('p', { class: 'msg' }, 'Keine Dividenden im Zeitraum.');
@@ -896,6 +902,10 @@ async function runDividends(ev) {
       const r = await src.run(id, from, ctx);
       if (r.rows) {
         body = [h('p', { class: 'msg' }, `${r.name} · ${r.sym} · ${r.rows.length} Zahlungen`), divTable(r.rows)];
+        if (r.splits) body.push(h('p', { class: 'msg', style: 'margin-top:14px' }, h('b', {}, 'Splits: '),
+          r.splits.error ? 'Abruf fehlgeschlagen (' + r.splits.error + ')'
+            : !r.splits.length ? 'keine im Zeitraum'
+            : r.splits.map(x => { const g = n => n.toLocaleString('de-DE', { maximumFractionDigits: 4 }); return `${fmtDate(x.d)}: ${x.b > x.a ? 'Zusammenlegung' : 'Split'} ${g(x.b)} : ${g(x.a)} (neue Stücke je bisheriges: ${g(x.a / x.b)})`; }).join(' · ')));
         if (!r.rows.length) status = 'nodata';
       } else {
         status = 'divinfo';
