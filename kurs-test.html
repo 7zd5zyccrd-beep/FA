@@ -180,7 +180,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
 <script>
 'use strict';
-const VERSION = '0.2.4';
+const VERSION = '0.2.5';
 const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
 const TIMEOUT_MS = 15000;
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
@@ -928,9 +928,11 @@ async function runDividends(ev) {
         status = 'divinfo';
         body = [];
         if (r.splits) body.push(h('p', { class: 'msg' }, h('b', {}, 'Splits'), ` (${r.name})`), splitTable(r.splits));
-        if (r.fund) body.push(h('p', { class: 'msg', style: 'margin-top:14px' }, h('b', {}, 'Kennzahlen je Geschäftsjahr'), ' – vollständig, zur Prüfung:'),
+        if (r.fund) body.push(h('p', { class: 'msg', style: 'margin-top:14px' }, h('b', {}, 'Kennzahlen je Geschäftsjahr'), ' – nur Dividendenfelder, zur Prüfung:'),
           r.fund.slice(0, 4).map((x, i) => h('details', { class: 'raw', open: i === 0 }, h('summary', {}, `Eintrag ${i + 1}` + (x.dateExDividend ? ` · Ex-Tag ${fmtDate(String(x.dateExDividend).slice(0, 10))}` : '')),
-            h('pre', {}, JSON.stringify(x, null, 1)))));
+            h('pre', { style: 'max-height:none' }, Object.entries(x)
+              .filter(([k]) => /div|payout|aussch|^label$|year|currency/i.test(k))
+              .map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n') || '(keine Dividendenfelder)'))));
         if (r.hits.length) body.push(h('p', { class: 'msg', style: 'margin-top:14px' }, `Weitere Fundstellen (noch nicht ausgewertet). Antippen zeigt den Inhalt:`),
           r.hits.map(x => h('details', { class: 'raw' }, h('summary', {}, x.path),
             h('pre', {}, JSON.stringify(x.value, null, 1).slice(0, 4000)))));
