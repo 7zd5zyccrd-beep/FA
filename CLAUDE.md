@@ -109,6 +109,9 @@ Nutzer: Jean. Kommunikation auf Deutsch.
    Dividenden-Schnittstelle – der Test zeigt Fundstellen in der Snapshot-Antwort; EODHD über `/api/div`.
    Danach: „Offene Dividenden“ in der App (erwartete Zahlung aus Bestand am Ex-Tag × Betrag je
    Aktie als vorausgefüllte Buchung; Steuern trägt Jean aus der Abrechnung ein) – freigegeben.
+   Mit eingeplant (freigegeben): **„Offene Kapitalmaßnahmen“** – Splits aus derselben Quelle
+   (EODHD `/api/splits`) als Vorschlag mit Verhältnis und Bestand vorher/nachher, ein Tipp öffnet
+   die vorausgefüllte Split-Buchung je Depot. Splits werden bis dahin von Hand gebucht.
 2.–5. **App v1.0.0** (Okt. 2026): Grundgerüst, Bewertung, Performance, Darstellung umgesetzt,
    danach Prüfung durch UI-, UX- und Design-Fachleute, Entscheidung durch einen Vorgesetzten,
    Umsetzung in drei Etappen (v0.9.1–v0.9.3). **Jean beurteilt die fertige App noch.**
