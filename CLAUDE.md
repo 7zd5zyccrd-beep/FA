@@ -111,7 +111,10 @@ Nutzer: Jean. Kommunikation auf Deutsch.
    Abruf bei „Kurse aktualisieren“, gespeichert in meta `ca.<secId>`, ausgeblendete in `ca.dismissed`).
    onvista liefert **keine Dividende je Aktie** (nur Rendite in %, ein Ex-Tag je Geschäftsjahr, in EUR).
    Deshalb freigegeben: **Dividenden-Vorschläge aus der eigenen Historie** (Rhythmus aus erfassten
-   Dividenden, Betrag = Bestand × letzte Dividende je Aktie) als App v1.2.0. Alpha Vantage zurückgestellt.
+   Dividenden, Betrag = Bestand × letzte Dividende je Aktie) – **umgesetzt in App v1.2.0**
+   (Rhythmus: Median der letzten Abstände, gerundet auf 1/3/6/12 Monate; nach nur einer Zahlung
+   USD/CAD vierteljährlich, sonst jährlich, als „geschätzt“ markiert; ausgeblendete in `div.dismissed`).
+   Alpha Vantage zurückgestellt.
 2.–5. **App v1.0.0** (Okt. 2026): Grundgerüst, Bewertung, Performance, Darstellung umgesetzt,
    danach Prüfung durch UI-, UX- und Design-Fachleute, Entscheidung durch einen Vorgesetzten,
    Umsetzung in drei Etappen (v0.9.1–v0.9.3). **Jean beurteilt die fertige App noch.**

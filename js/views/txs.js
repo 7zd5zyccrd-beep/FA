@@ -113,6 +113,7 @@ export function txForm(view, id) {
     id: uid(), type: p.typ || 'buy', date: p.datum || today(), depotId: defaultDepot, secId: p.wp || '',
     ...(p.plan ? { planId: p.plan, planDate: p.datum, note: 'Sparplan' } : {}),
     ...(p.ratio ? { ratio: Number(p.ratio) } : {}),
+    ...(p.betrag ? { amount: Number(p.betrag), currency: p.waehrung || undefined } : {}),
     ...(draft ? draft.data : {}),
   };
   if (p.fromNew && p.newId) {
@@ -218,7 +219,7 @@ export function txForm(view, id) {
     }
     if (['div', 'interest'].includes(t)) {
       parts.push(...section('Betrag',
-        h('div', { class: 'grid2' }, field('Brutto', f.amount, 'vor allen Steuern'), field('Währung', f.currency)),
+        h('div', { class: 'grid2' }, field('Brutto', f.amount, p.vorschlag ? `Vorschlag: ${p.vorschlag} – bitte mit der Abrechnung abgleichen` : 'vor allen Steuern'), field('Währung', f.currency)),
         fxBox, field('Gebühren (€)', f.fees)));
       parts.push(...section('Steuern', taxFields(true), h('div', { class: 'hint' }, 'Kapitalertragsteuer, Soli und Kirchensteuer in €.')));
     }

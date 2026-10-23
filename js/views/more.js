@@ -2,7 +2,7 @@ import { h, fmtEur, fmtNum, fmtDate, fmtShares, today, parseNum, numIn, uid, isi
 import { head, iconBtn, list, row, field, numInput, select, confirmSheet, toast, sheet } from '../ui.js';
 import { state, save, remove, setMeta, deletePricesOf, clearAll } from '../db.js';
 import { KINDS, duePlanDates } from '../calc.js';
-import { model, params, sec, secName, depotName, kindName, go, goBack, rerender, VERSION, openSplits } from '../ctx.js';
+import { model, params, sec, secName, depotName, kindName, go, goBack, rerender, VERSION, openCount } from '../ctx.js';
 import { lookup, defaultNotation } from '../prices.js';
 import { runPriceUpdate, exportBackup, importBackup, loadDemo, hardReload } from '../actions.js';
 
@@ -14,7 +14,7 @@ export function more(view) {
       row({ title: 'Depots', rightSub: String(state.depots.length), href: '#/depots' }),
       row({ title: 'Wertpapiere', rightSub: String(state.securities.length), href: '#/wertpapiere' }),
       row({ title: 'Sparpläne', rightSub: due ? `${due} offen` : String(state.plans.length), href: '#/sparplaene' }),
-      row({ title: 'Offene Vorschläge', sub: 'Kapitalmaßnahmen', rightSub: openSplits().length ? `${openSplits().length} offen` : '–', href: '#/offen' })),
+      row({ title: 'Offene Vorschläge', sub: 'Dividenden und Kapitalmaßnahmen', rightSub: openCount() ? `${openCount()} offen` : '–', href: '#/offen' })),
     list(
       row({ title: 'Kurse und Devisen', sub: state.meta.lastPriceUpdate ? `Zuletzt abgerufen ${fmtDate(state.meta.lastPriceUpdate.slice(0, 10))}` : 'Noch nie abgerufen', href: '#/kurse' }),
       row({ title: 'Sicherung', sub: state.meta.lastBackup ? `Letzte Sicherung ${fmtDate(state.meta.lastBackup.slice(0, 10))}` : 'Noch keine Sicherung', href: '#/sicherung' })),
@@ -306,6 +306,7 @@ export function help(view) {
     P('Vor und nach Steuern:', 'Nach Steuern mindern alle ausgewiesenen Steuern (Kapitalertragsteuer, Soli, Kirchensteuer, Quellensteuer, Vorabpauschale) die Rückflüsse; Erstattungen erhöhen sie. Steuern auf noch nicht verkaufte Gewinne werden nicht vorweggenommen.'),
     P('Kapitalmaßnahmen:', 'Ein Split ändert die Stückzahl; ist die abgerufene Kurshistorie splitbereinigt, rechnet die App ältere Kurse zurück. Umtausch und Abspaltung übertragen den Marktwert vom alten auf das neue Wertpapier – die Gesamtrendite bleibt davon unberührt.'),
     P('Offene Kapitalmaßnahmen:', 'Bei „Kurse aktualisieren“ holt die App für jede Aktie die Splits von onvista. Fehlt für ein Depot, das am Vortag Stücke hatte, die Split-Buchung, erscheint sie unter Mehr → Offene Vorschläge zum Prüfen und Erfassen.'),
+    P('Offene Dividenden:', 'Aus deinen erfassten Dividenden erkennt die App den Rhythmus (monatlich bis jährlich; nach nur einer Zahlung geschätzt) und schlägt fällige Zahlungen vor: Bestand am Termin × letzte Dividende je Stück. Den Betrag und die Steuern bitte aus der Abrechnung übernehmen.'),
     P('Einstand:', 'Nach Durchschnittskosten inklusive Kaufgebühren. Daraus ergeben sich offener und realisierter Kursgewinn.'),
     P('Prüfhinweise:', 'Kurssprünge über 20 % von Tag zu Tag und Abrechnungskurse, die mehr als 3 % vom Schlusskurs abweichen, werden beim Wertpapier gemeldet.')));
 }

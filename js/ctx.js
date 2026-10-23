@@ -1,9 +1,9 @@
 // Gemeinsamer Zugriff der Ansichten auf Daten, Berechnung und Navigation
 import { state } from './db.js';
 import { Model, KINDS } from './calc.js';
-import { daysBetween, today, addDays } from './util.js';
+import { daysBetween, today, addDays, addMonths } from './util.js';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 
 let cache = { v: -1, m: null };
 export function model() {
@@ -109,6 +109,55 @@ export function openSplits() {
   }
   return res.sort((a, b) => a.d < b.d ? -1 : 1);
 }
+
+// Offene Dividenden aus der eigenen Historie: Rhythmus aus den erfassten Zahlungen je Depot und
+// Wertpapier, Betrag = Bestand am Termin × letzte Zahlung je Stück (splitbereinigt)
+const RHYTHMS = [1, 3, 6, 12];
+export function openDividends(until = today()) {
+  const m = model();
+  const dismissed = new Set(state.meta['div.dismissed'] || []);
+  const byKey = new Map();
+  for (const t of m.txs) {
+    if (!['div', 'interest'].includes(t.type) || !(t.amount > 0)) continue;
+    const key = t.depotId + '|' + t.secId;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(t);
+  }
+  const res = [];
+  for (const [key, pays] of byKey) {
+    const [depotId, secId] = key.split('|');
+    const s = sec(secId);
+    if (!s) continue;
+    const last = pays[pays.length - 1];
+    // Rhythmus: Median der letzten bis zu drei Abstände, auf 1/3/6/12 Monate gerundet
+    let every, guessed = false;
+    if (pays.length >= 2) {
+      const gaps = [];
+      for (let i = Math.max(1, pays.length - 3); i < pays.length; i++) gaps.push(daysBetween(pays[i - 1].date, pays[i].date) / 30.44);
+      gaps.sort((a, b) => a - b);
+      const med = gaps[Math.floor(gaps.length / 2)];
+      every = RHYTHMS.reduce((best, r) => Math.abs(r - med) < Math.abs(best - med) ? r : best, 12);
+    } else {
+      every = ['USD', 'CAD'].includes(String(last.currency || s.currency || '').toUpperCase()) ? 3 : 12;
+      guessed = true;
+    }
+    const lastShares = m.sharesAt(key, last.date);
+    if (!(lastShares > 0)) continue;
+    const perShareAtLast = last.amount / lastShares;
+    const day = +last.date.slice(8, 10);
+    for (let k = 1; k <= 8; k++) {
+      const d = addMonths(last.date, k * every, day);
+      if (d > until) break;
+      const n = m.sharesAt(key, d);
+      if (!(n > 0) || dismissed.has(key + '|' + d)) continue;
+      const perShare = perShareAtLast / m.splitFactorBetween(secId, last.date, d);
+      res.push({ sec: s, depotId, key, d, type: last.type, every, guessed, shares: n, perShare,
+        amount: Math.round(n * perShare * 100) / 100, currency: last.currency || s.currency || 'EUR' });
+    }
+  }
+  return res.sort((a, b) => a.d < b.d ? -1 : 1);
+}
+export const openCount = () => openSplits().length + openDividends().length;
 
 // Sicherungserinnerung fällig?
 export function backupDue() {

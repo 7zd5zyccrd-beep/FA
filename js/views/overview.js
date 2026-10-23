@@ -3,7 +3,7 @@ import { head, iconBtn, kpi, money, seg, list, row, signCls } from '../ui.js';
 import { lineChart, allocation } from '../chart.js';
 import { state } from '../db.js';
 import { duePlanDates } from '../calc.js';
-import { model, setting, depotName, kindName, sec, periodRange, backupDue, rerender, openSplits } from '../ctx.js';
+import { model, setting, depotName, kindName, sec, periodRange, backupDue, rerender, openSplits, openDividends } from '../ctx.js';
 import { runPriceUpdate, loadDemo } from '../actions.js';
 
 const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
@@ -122,10 +122,11 @@ function banners(m, t) {
       last ? `Letzte Sicherung am ${fmtDate(last.slice(0, 10))}. Seitdem gab es Änderungen.` : 'Es gibt noch keine Sicherung. Safari kann Daten selten genutzter Seiten löschen.',
       h('div', {}, h('a', { class: 'btn small', href: '#/sicherung' }, 'Jetzt sichern')))));
   }
-  const ca = openSplits().length;
-  if (ca) {
+  const ca = openSplits().length, dv = openDividends().length;
+  if (ca || dv) {
+    const parts = [ca ? (ca === 1 ? '1 Kapitalmaßnahme' : `${ca} Kapitalmaßnahmen`) : null, dv ? (dv === 1 ? '1 Dividende' : `${dv} Dividenden`) : null].filter(Boolean);
     res.push(h('a', { class: 'banner info', href: '#/offen', style: 'color:inherit' }, h('div', { class: 'main' },
-      h('b', {}, ca === 1 ? '1 Kapitalmaßnahme offen' : `${ca} Kapitalmaßnahmen offen`), 'Ein Split ist noch nicht gebucht. Antippen, um ihn zu prüfen und zu erfassen.')));
+      h('b', {}, `Offen: ${parts.join(', ')}`), 'Antippen, um sie zu prüfen und mit den Werten der Abrechnung zu erfassen.')));
   }
   let due = 0;
   for (const p of state.plans) due += duePlanDates(p, state.txs, t).length;
