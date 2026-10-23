@@ -77,13 +77,9 @@ Nutzer: Jean. Kommunikation auf Deutsch.
   Problempunkte: Abdeckung deutscher Fonds/ETFs per ISIN, Abruf direkt aus dem
   Browser (CORS), Verlässlichkeit, Kosten.
 - **Stand Test (Okt. 2026):** onvista liefert Schlusskurse vom iPhone (über `eod_history`);
-  Yahoo und OpenFIGI werden vom Browser blockiert; EODHD, Twelve Data, Alpha Vantage
-  noch ohne Schlüssel ungetestet.
-- **Erinnerung an Jean:** Sobald die App im besprochenen Umfang funktioniert, an den
-  **EODHD-Schlüssel** erinnern (kostenlos, eodhd.com/register; Eintrag in der App unter
-  „Quellen und Schlüssel“) – als zweite, verlässlichere Quelle neben onvista.
-  Vorschlag dazu: je Abfrage nur einen Börsenplatz abrufen, um das Tageskontingent
-  (ca. 20 Abrufe) zu schonen.
+  Yahoo, OpenFIGI und **EODHD** (mit Schlüssel, auch direkte Kursabfrage) werden vom Browser
+  blockiert – EODHD scheidet damit ohne eigenen Server aus. Twelve Data, Alpha Vantage ungetestet.
+- Erinnerung EODHD-Schlüssel erledigt (Jean hat ihn; EODHD blockiert, s. o.).
 
 ---
 
@@ -110,7 +106,7 @@ Nutzer: Jean. Kommunikation auf Deutsch.
    Danach: „Offene Dividenden“ in der App (erwartete Zahlung aus Bestand am Ex-Tag × Betrag je
    Aktie als vorausgefüllte Buchung; Steuern trägt Jean aus der Abrechnung ein) – freigegeben.
    Mit eingeplant (freigegeben): **„Offene Kapitalmaßnahmen“** – Splits aus derselben Quelle
-   (EODHD `/api/splits`) als Vorschlag mit Verhältnis und Bestand vorher/nachher, ein Tipp öffnet
+   (Quelle offen, da EODHD blockiert; nächster Kandidat onvista-Snapshot) als Vorschlag mit Verhältnis und Bestand vorher/nachher, ein Tipp öffnet
    die vorausgefüllte Split-Buchung je Depot. Splits werden bis dahin von Hand gebucht.
 2.–5. **App v1.0.0** (Okt. 2026): Grundgerüst, Bewertung, Performance, Darstellung umgesetzt,
    danach Prüfung durch UI-, UX- und Design-Fachleute, Entscheidung durch einen Vorgesetzten,
