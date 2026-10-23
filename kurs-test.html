@@ -180,7 +180,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
 <script>
 'use strict';
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
 const TIMEOUT_MS = 15000;
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
@@ -836,8 +836,8 @@ async function divOnvista(isin, from, ctx) {
   if (!inst) throw new SourceError('notfound', 'ISIN nicht gefunden');
   const path = PATH[inst.entityType] || String(inst.entityType || '').toLowerCase() + 's';
   const snap = await ctx.json(`${OV}/${path}/ISIN:${enc(isin)}/snapshot`);
-  const hits = findKeys(snap, /divid|distribution|aussch|payout/i);
-  if (!hits.length) throw new SourceError('nodata', `In der onvista-Antwort (${inst.entityType}) gibt es keine Dividenden-Felder.`);
+  const hits = findKeys(snap, /divid|distribution|aussch|payout|split|corporate|kapitalma/i);
+  if (!hits.length) throw new SourceError('nodata', `In der onvista-Antwort (${inst.entityType}) gibt es keine Dividenden- oder Split-Felder.`);
   return { name: inst.name, hits };
 }
 // EODHD: dokumentierte Dividenden-Abfrage je Börsenkürzel
@@ -909,7 +909,7 @@ async function runDividends(ev) {
         if (!r.rows.length) status = 'nodata';
       } else {
         status = 'divinfo';
-        body = [h('p', { class: 'msg' }, `${r.name}: Fundstellen in der Antwort (zur Prüfung, noch nicht ausgewertet):`),
+        body = [h('p', { class: 'msg' }, `${r.name}: Fundstellen zu Dividenden und Splits (zur Prüfung, noch nicht ausgewertet). Antippen zeigt den Inhalt:`),
           r.hits.map(x => h('details', { class: 'raw' }, h('summary', {}, x.path),
             h('pre', {}, JSON.stringify(x.value, null, 1).slice(0, 4000))))];
       }
