@@ -180,7 +180,7 @@ details[open] > summary::after { transform: rotate(90deg); }
 
 <script>
 'use strict';
-const VERSION = '0.2.3';
+const VERSION = '0.2.4';
 const LOOKBACK_DAYS = 10;   // so weit wird vor dem Wunschdatum nach dem letzten Handelstag gesucht
 const TIMEOUT_MS = 15000;
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'DKK', 'SEK', 'NOK', 'HKD'];
@@ -842,7 +842,9 @@ async function divOnvista(isin, from, ctx) {
   const sl = snap.stocksSplitList && Array.isArray(snap.stocksSplitList.list) ? snap.stocksSplitList.list : null;
   const splits = sl ? sl.map(x => ({ d: String(x.dateSplit || '').slice(0, 10), factor: x.factor, before: x.pricePreviousLast, after: x.lastPrice, cur: x.isoCurrency }))
     .filter(x => x.d >= from).sort((a, b) => a.d < b.d ? -1 : 1) : null;
-  return { name: inst.name, hits: hits.filter(x => !/^stocksSplitList/.test(x.path)), splits };
+  // Kennzahlen je Geschäftsjahr (enthalten den Ex-Dividenden-Tag) vollständig zeigen
+  const fund = snap.stocksCnFundamentalList && Array.isArray(snap.stocksCnFundamentalList.list) ? snap.stocksCnFundamentalList.list : null;
+  return { name: inst.name, hits: hits.filter(x => !/^stocksSplitList|^stocksCnFundamentalList|^savingsPlanList|^stocksBalanceSheetList/.test(x.path)), splits, fund };
 }
 function splitTable(rows) {
   if (!rows.length) return h('p', { class: 'msg' }, 'Keine Splits im Zeitraum.');
@@ -926,6 +928,9 @@ async function runDividends(ev) {
         status = 'divinfo';
         body = [];
         if (r.splits) body.push(h('p', { class: 'msg' }, h('b', {}, 'Splits'), ` (${r.name})`), splitTable(r.splits));
+        if (r.fund) body.push(h('p', { class: 'msg', style: 'margin-top:14px' }, h('b', {}, 'Kennzahlen je Geschäftsjahr'), ' – vollständig, zur Prüfung:'),
+          r.fund.slice(0, 4).map((x, i) => h('details', { class: 'raw', open: i === 0 }, h('summary', {}, `Eintrag ${i + 1}` + (x.dateExDividend ? ` · Ex-Tag ${fmtDate(String(x.dateExDividend).slice(0, 10))}` : '')),
+            h('pre', {}, JSON.stringify(x, null, 1)))));
         if (r.hits.length) body.push(h('p', { class: 'msg', style: 'margin-top:14px' }, `Weitere Fundstellen (noch nicht ausgewertet). Antippen zeigt den Inhalt:`),
           r.hits.map(x => h('details', { class: 'raw' }, h('summary', {}, x.path),
             h('pre', {}, JSON.stringify(x.value, null, 1).slice(0, 4000)))));
