@@ -88,6 +88,16 @@ export async function fetchHistory(sec, from, to) {
   return { currency: cur, points: [...out.values()].filter(p => p.d >= from && p.d <= to).sort((a, b) => a.d < b.d ? -1 : 1) };
 }
 
+// ---------- Splits ----------
+// onvista-Snapshot: stocksSplitList.list[] mit dateSplit und factor (= neue Stücke je bisheriges Stück)
+export async function fetchSplits(sec) {
+  if (!sec.ov || sec.ov.type !== 'STOCK' || !sec.isin) return [];
+  const snap = await getJSON(`${OV}/stocks/ISIN:${encodeURIComponent(sec.isin)}/snapshot`);
+  const l = (snap.stocksSplitList && snap.stocksSplitList.list) || [];
+  return l.map(x => ({ d: String(x.dateSplit || '').slice(0, 10), factor: Number(x.factor) }))
+    .filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.d) && x.factor > 0 && x.factor !== 1);
+}
+
 // ---------- EZB-Referenzkurse ----------
 function parseCsv(text) {
   return text.split(/\r?\n/).filter(Boolean).map(line => {
@@ -173,6 +183,12 @@ export async function updateAll(state, db, onStep = () => {}) {
     for (const [a, b] of ranges) {
       try { await db.putFx(cur, await fetchFx(cur, a, b)); } catch (e) { errors.push(`EZB ${cur}: ${e.message}`); }
     }
+  }
+  // Splits je Aktie (ein Abruf pro Aktie) für die offenen Kapitalmaßnahmen
+  for (const sec of state.securities.filter(s => s.ov && s.ov.type === 'STOCK' && s.isin && firstTx.has(s.id))) {
+    onStep(`Kapitalmaßnahmen: ${sec.name}`);
+    try { await db.setMeta('ca.' + sec.id, { at: new Date().toISOString(), list: await fetchSplits(sec) }); }
+    catch (e) { errors.push(`Splits ${sec.name}: ${e.message}`); }
   }
   await db.setMeta('lastPriceUpdate', new Date().toISOString());
   return { added, errors };

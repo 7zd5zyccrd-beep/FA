@@ -6,6 +6,7 @@ import { overview } from './views/overview.js';
 import { holdings, securityDetail } from './views/holdings.js';
 import { txList, txForm } from './views/txs.js';
 import { analysis } from './views/analysis.js';
+import { openItems } from './views/open.js';
 import { more, depots, depotForm, securities, securityForm, plans, planForm, pricesView, backup, help } from './views/more.js';
 
 const ROUTES = [
@@ -25,6 +26,7 @@ const ROUTES = [
   [/^\/kurse$/, pricesView, 'more'],
   [/^\/sicherung$/, backup, 'more'],
   [/^\/hilfe$/, help, 'more'],
+  [/^\/offen$/, openItems, 'more'],
 ];
 const TABS = [['home', '#/', 'Übersicht'], ['holdings', '#/bestand', 'Bestand'], ['txs', '#/buchungen', 'Buchungen'], ['chart', '#/auswertung', 'Auswertung'], ['more', '#/mehr', 'Mehr']];
 

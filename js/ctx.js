@@ -1,9 +1,9 @@
 // Gemeinsamer Zugriff der Ansichten auf Daten, Berechnung und Navigation
 import { state } from './db.js';
 import { Model, KINDS } from './calc.js';
-import { daysBetween, today } from './util.js';
+import { daysBetween, today, addDays } from './util.js';
 
-export const VERSION = '1.0.3';
+export const VERSION = '1.1.0';
 
 let cache = { v: -1, m: null };
 export function model() {
@@ -86,6 +86,29 @@ export const PERIODS = [
   ['month', 'Lfd. Monat'], ['prevMonth', 'Vormonat'], ['ytd', 'Lfd. Jahr'], ['prevYear', 'Vorjahr'],
   ['1y', '1 Jahr'], ['3y', '3 Jahre'], ['5y', '5 Jahre'], ['all', 'Seit Beginn'], ['custom', 'Frei'],
 ];
+
+// Offene Kapitalmaßnahmen: bekannte Splits, für die in einem Depot mit Bestand am Vortag
+// noch keine Split-Buchung (± 7 Tage) existiert und die nicht als „entfällt“ markiert sind
+export function openSplits() {
+  const m = model();
+  const dismissed = new Set(state.meta['ca.dismissed'] || []);
+  const res = [];
+  for (const s of state.securities) {
+    const ca = state.meta['ca.' + s.id];
+    if (!ca || !ca.list) continue;
+    for (const sp of ca.list) {
+      for (const key of m.keys(k => k.endsWith('|' + s.id))) {
+        const before = m.sharesAt(key, addDays(sp.d, -1));
+        if (!(before > 0)) continue;
+        const depotId = key.split('|')[0];
+        const booked = m.txs.some(t => t.type === 'split' && t.depotId === depotId && t.secId === s.id && Math.abs(daysBetween(t.date, sp.d)) <= 7);
+        if (booked || dismissed.has(key + '|' + sp.d)) continue;
+        res.push({ sec: s, depotId, key, d: sp.d, factor: sp.factor, before });
+      }
+    }
+  }
+  return res.sort((a, b) => a.d < b.d ? -1 : 1);
+}
 
 // Sicherungserinnerung fällig?
 export function backupDue() {

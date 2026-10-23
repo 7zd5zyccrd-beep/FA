@@ -107,7 +107,11 @@ Nutzer: Jean. Kommunikation auf Deutsch.
    Aktie als vorausgefüllte Buchung; Steuern trägt Jean aus der Abrechnung ein) – freigegeben.
    Mit eingeplant (freigegeben): **„Offene Kapitalmaßnahmen“** – Splits aus derselben Quelle
    (onvista-Snapshot `stocksSplitList.list[]`: `dateSplit`, `factor` = neue Stücke je bisheriges) als Vorschlag mit Verhältnis und Bestand vorher/nachher, ein Tipp öffnet
-   die vorausgefüllte Split-Buchung je Depot. Splits werden bis dahin von Hand gebucht.
+   die vorausgefüllte Split-Buchung je Depot. **Umgesetzt in App v1.1.0** (Mehr → Offene Vorschläge;
+   Abruf bei „Kurse aktualisieren“, gespeichert in meta `ca.<secId>`, ausgeblendete in `ca.dismissed`).
+   onvista liefert **keine Dividende je Aktie** (nur Rendite in %, ein Ex-Tag je Geschäftsjahr, in EUR).
+   Deshalb freigegeben: **Dividenden-Vorschläge aus der eigenen Historie** (Rhythmus aus erfassten
+   Dividenden, Betrag = Bestand × letzte Dividende je Aktie) als App v1.2.0. Alpha Vantage zurückgestellt.
 2.–5. **App v1.0.0** (Okt. 2026): Grundgerüst, Bewertung, Performance, Darstellung umgesetzt,
    danach Prüfung durch UI-, UX- und Design-Fachleute, Entscheidung durch einen Vorgesetzten,
    Umsetzung in drei Etappen (v0.9.1–v0.9.3). **Jean beurteilt die fertige App noch.**

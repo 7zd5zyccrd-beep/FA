@@ -65,7 +65,7 @@ export async function loadDemo() {
 // 10 Minuten (Vorgabe von GitHub Pages). Jede geladene Datei wird frisch geholt, dann neu gestartet.
 const APP_FILES = ['index.html', 'css/app.css', 'manifest.webmanifest', 'js/app.js', 'js/ctx.js', 'js/util.js', 'js/ui.js', 'js/db.js',
   'js/calc.js', 'js/prices.js', 'js/chart.js', 'js/actions.js', 'js/demo.js',
-  'js/views/overview.js', 'js/views/holdings.js', 'js/views/txs.js', 'js/views/analysis.js', 'js/views/more.js'];
+  'js/views/overview.js', 'js/views/holdings.js', 'js/views/txs.js', 'js/views/analysis.js', 'js/views/more.js', 'js/views/open.js'];
 export async function hardReload() {
   toast('Hole die neueste Version …', 8000);
   const base = location.origin + location.pathname.replace(/[^/]*$/, '');

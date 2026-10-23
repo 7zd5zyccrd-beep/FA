@@ -112,6 +112,7 @@ export function txForm(view, id) {
   const tx = existing ? { ...existing } : {
     id: uid(), type: p.typ || 'buy', date: p.datum || today(), depotId: defaultDepot, secId: p.wp || '',
     ...(p.plan ? { planId: p.plan, planDate: p.datum, note: 'Sparplan' } : {}),
+    ...(p.ratio ? { ratio: Number(p.ratio) } : {}),
     ...(draft ? draft.data : {}),
   };
   if (p.fromNew && p.newId) {
